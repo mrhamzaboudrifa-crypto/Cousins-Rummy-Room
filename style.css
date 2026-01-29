@@ -1,94 +1,198 @@
+/* Cousins Rummy Room — Global Styles (Mobile-first, iPhone + Android friendly) */
+
 :root{
-  --bg:#070712;
-  --glass: rgba(18,20,36,.45);
-  --border: rgba(255,255,255,.14);
-  --text:#f2f3ff;
-  --muted: rgba(242,243,255,.72);
-  --amber:#ff6a2b;
-  --cyan:#6fd6ff;
+  --bg0:#05050c;
+  --bg1:#090917;
+  --glass: rgba(255,255,255,.10);
+  --glass2: rgba(0,0,0,.25);
+  --stroke: rgba(255,255,255,.14);
+  --text: rgba(242,243,255,.95);
+  --muted: rgba(242,243,255,.70);
+  --cyan: rgba(111,214,255,.95);
+  --cyanGlow: rgba(111,214,255,.28);
+  --pink: rgba(255,122,170,.92);
+  --pinkGlow: rgba(255,78,106,.22);
+  --shadow: rgba(0,0,0,.45);
 }
-*{box-sizing:border-box;}
-html,body{height:100%; margin:0;}
-body{
-  font-family: system-ui,-apple-system,Segoe UI,Roboto,Arial;
-  color:var(--text);
-  background: radial-gradient(1200px 700px at 30% 0%, rgba(255,106,43,.18), transparent 60%),
-              radial-gradient(1200px 700px at 80% 0%, rgba(111,214,255,.14), transparent 60%),
-              linear-gradient(180deg, #04040a, var(--bg));
-  overflow:hidden;
-}
-.bg{
-  position:fixed; inset:0;
-  background: radial-gradient(900px 520px at 50% 22%, rgba(255,180,120,.14), transparent 55%),
-              radial-gradient(1200px 900px at 50% 100%, rgba(0,0,0,.55), rgba(0,0,0,.78));
-  pointer-events:none;
-}
-#app{
+
+/* --- Hard reset / layout guarantees --- */
+*{ box-sizing:border-box; }
+html, body{
+  width:100%;
   height:100%;
-  padding: max(14px, env(safe-area-inset-top)) 14px max(14px, env(safe-area-inset-bottom));
-  display:flex; justify-content:center; align-items:flex-start;
+  margin:0;
+  padding:0;
 }
+body{
+  color:var(--text);
+  background: radial-gradient(1200px 900px at 30% 20%, rgba(255,140,90,.20), transparent 55%),
+              radial-gradient(900px 700px at 65% 35%, rgba(111,214,255,.18), transparent 58%),
+              linear-gradient(180deg, var(--bg0), var(--bg1));
+  font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial;
+  overflow-x:hidden;                 /* prevents sideways shifting */
+  min-height:100vh;
+
+  /* iPhone notch safe areas */
+  padding: env(safe-area-inset-top)
+           env(safe-area-inset-right)
+           env(safe-area-inset-bottom)
+           env(safe-area-inset-left);
+}
+
+/* Background layer (does not affect layout) */
+.bg{
+  position:fixed;
+  inset:0;
+  width:100%;
+  height:100%;
+  z-index:-1;
+  pointer-events:none;
+  background:
+    radial-gradient(1200px 900px at 20% 15%, rgba(255,150,80,.20), transparent 58%),
+    radial-gradient(900px 700px at 70% 35%, rgba(111,214,255,.15), transparent 60%),
+    linear-gradient(180deg, rgba(0,0,0,.35), rgba(0,0,0,.55));
+  filter:saturate(1.15) contrast(1.05);
+}
+
+/* --- Center the app on every phone size --- */
+.safe{
+  width:100%;
+  min-height:100vh;
+  display:flex;
+  justify-content:center;     /* centers horizontally */
+  align-items:flex-start;     /* top aligned like an app */
+  padding:16px;               /* breathing room */
+}
+
+/* This is the “app container” */
 .shell{
-  width:min(430px,100%);
-  margin-top:10px;
-  background: rgba(0,0,0,.18);
-  border:1px solid var(--border);
-  border-radius: 22px;
-  padding: 14px;
-  backdrop-filter: blur(10px);
+  width:100%;
+  max-width:520px;            /* phone-like width */
+  margin:0 auto;
+  padding:0;
 }
+
+/* --- Typography / neon title --- */
 .title{
-  text-align:center;
+  font-size:34px;
   font-weight:900;
-  font-size: 34px;
-  color:#ffd2c0;
-  text-shadow: 0 0 10px rgba(255,106,43,.60), 0 0 24px rgba(255,106,43,.35);
-  font-family: ui-rounded, "Segoe Script", "Apple Chancery", cursive;
+  letter-spacing:.3px;
+  text-shadow: 0 12px 40px rgba(0,0,0,.45);
 }
 .subtitle{
-  text-align:center;
-  margin-top:6px;
+  font-size:28px;
   font-weight:900;
-  font-size: 40px;
-  color:#c8f0ff;
-  text-shadow: 0 0 12px rgba(111,214,255,.65), 0 0 30px rgba(111,214,255,.30);
+  color: rgba(190,240,255,.92);
+  text-shadow:
+    0 0 12px var(--cyanGlow),
+    0 18px 50px rgba(0,0,0,.40);
+  margin-top:2px;
 }
 .underline{
-  width: 75%;
-  height: 4px;
-  margin: 10px auto 14px;
-  border-radius: 999px;
-  background: linear-gradient(90deg, transparent, rgba(111,214,255,.9), transparent);
-  box-shadow: 0 0 16px rgba(111,214,255,.55);
+  height:4px;
+  width:160px;
+  border-radius:999px;
+  margin:10px 0 16px;
+  background: linear-gradient(90deg, rgba(111,214,255,1), rgba(111,214,255,.2));
+  box-shadow: 0 0 18px rgba(111,214,255,.25);
 }
+
+.small{ color:var(--muted); font-size:12px; }
+b{ color: rgba(255,255,255,.95); }
+
+/* --- Panels / glass --- */
 .panel{
-  background: var(--glass);
-  border:1px solid var(--border);
-  border-radius: 16px;
-  padding: 12px;
-  margin-bottom: 12px;
+  background: linear-gradient(180deg, rgba(255,255,255,.10), rgba(0,0,0,.20));
+  border: 1px solid var(--stroke);
+  border-radius: 18px;
+  padding: 14px;
+  margin: 12px 0;
+  box-shadow:
+    0 14px 40px rgba(0,0,0,.40),
+    0 0 18px rgba(111,214,255,.10);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
 }
-.row{display:flex; justify-content:space-between; align-items:center; gap:10px;}
-.small{color:var(--muted); font-size: 12px;}
-.btn{
-  border:1px solid rgba(255,255,255,.18);
-  background: rgba(255,255,255,.06);
-  color: var(--text);
-  border-radius: 14px;
-  padding: 12px 12px;
-  font-weight: 800;
+
+/* Rows */
+.row{
+  display:flex;
+  justify-content:space-between;
+  align-items:center;
+  gap:10px;
 }
-.btn.cyan{ background: rgba(111,214,255,.12); border-color: rgba(111,214,255,.35); }
+
+/* Inputs */
 .input{
   width:100%;
-  padding: 12px;
-  border-radius: 14px;
-  border:1px solid rgba(255,255,255,.18);
-  background: rgba(0,0,0,.25);
-  color: var(--text);
-  font-weight:800;
+  padding:12px 12px;
+  border-radius:14px;
+  border: 1px solid var(--stroke);
+  background: rgba(0,0,0,.20);
+  color: rgba(255,255,255,.92);
+  outline:none;
 }
-.list{margin-top:10px;}
-.item{padding:8px 0; border-bottom:1px solid rgba(255,255,255,.08);}
-.chat{height:140px; overflow:auto; margin-top:10px;}
-.chat b{color:var(--text);}
+.input:focus{
+  border-color: rgba(111,214,255,.55);
+  box-shadow: 0 0 0 3px rgba(111,214,255,.14);
+}
+
+/* Buttons */
+.btn{
+  width:100%;
+  padding:12px 14px;
+  border-radius:16px;
+  border: 1px solid rgba(255,255,255,.16);
+  background: rgba(0,0,0,.22);
+  color: rgba(255,255,255,.92);
+  font-weight:900;
+  letter-spacing:.2px;
+  cursor:pointer;
+  box-shadow: 0 10px 26px rgba(0,0,0,.35);
+  transition: transform .08s ease, box-shadow .18s ease, border-color .18s ease;
+}
+.btn:active{ transform: translateY(1px) scale(.99); }
+.btn:hover{
+  border-color: rgba(111,214,255,.28);
+  box-shadow: 0 14px 34px rgba(0,0,0,.45), 0 0 16px rgba(111,214,255,.10);
+}
+.btn:disabled{
+  opacity:.45;
+  cursor:not-allowed;
+  box-shadow:none;
+}
+
+.btn.cyan{
+  background: linear-gradient(180deg, rgba(111,214,255,.35), rgba(0,0,0,.22));
+  border-color: rgba(111,214,255,.35);
+  box-shadow:
+    0 14px 34px rgba(0,0,0,.45),
+    0 0 18px rgba(111,214,255,.16);
+}
+
+/* Lists */
+.list{
+  margin-top:10px;
+  display:flex;
+  flex-direction:column;
+  gap:10px;
+}
+.item{
+  padding:10px 12px;
+  border-radius:14px;
+  border: 1px solid rgba(255,255,255,.12);
+  background: rgba(0,0,0,.16);
+}
+
+/* Chat box */
+.chat{
+  max-height:210px;
+  overflow:auto;
+  border-radius:14px;
+  padding:10px;
+  border: 1px solid rgba(255,255,255,.12);
+  background: rgba(0,0,0,.16);
+}
+
+/* --- Utility (helps practice screen too) --- */
+button, input{ -webkit-tap-highlight-color: transparent; }
