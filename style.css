@@ -337,3 +337,57 @@ html, body{
   .seatBox{ min-width:160px; }
   .centerRow{ grid-template-columns: 1fr; }
 }
+/* === MOBILE FIX PATCH (add at very bottom of style.css) === */
+* { box-sizing: border-box; }
+html, body { width: 100%; height: 100%; margin: 0; overflow-x: hidden; }
+body { overscroll-behavior: none; }
+
+/* Fill the phone screen (iPhone + Android) */
+#app, .safe { width: 100vw; max-width: 100vw; }
+.safe { min-height: 100dvh; padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left); }
+
+/* STOP the “shift to the left” caused by fixed widths/max widths */
+.shell {
+  width: min(100%, 980px) !important;
+  max-width: 100% !important;
+  margin: 0 auto !important;
+}
+
+/* Keep the whole game on ONE screen: header + main + bottom hand */
+.gameLayout {
+  height: 100dvh;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+/* Middle content scrolls internally (not the entire page) */
+.gameMain {
+  flex: 1;
+  overflow: auto;
+  -webkit-overflow-scrolling: touch;
+  padding-bottom: 8px;
+}
+
+/* Hand + unwanted must scroll sideways, never wrap off-screen */
+#hand, .handStrip, .peekStrip, .unwantedStrip {
+  display: flex;
+  gap: 10px;
+  flex-wrap: nowrap;
+  overflow-x: auto;
+  overflow-y: hidden;
+  -webkit-overflow-scrolling: touch;
+  touch-action: pan-x;
+  scrollbar-width: none;
+}
+#hand::-webkit-scrollbar, .handStrip::-webkit-scrollbar, .peekStrip::-webkit-scrollbar, .unwantedStrip::-webkit-scrollbar { display: none; }
+
+/* Make cards shrink nicely on small phones but stay readable */
+.card {
+  flex: 0 0 auto;
+  width: clamp(44px, 12vw, 66px);
+  height: clamp(64px, 18vw, 96px);
+}
+
+/* Prevent iOS zoom when typing */
+button, input { font-size: 16px; }
