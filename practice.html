@@ -82,11 +82,30 @@
       border-radius:16px;padding:10px;text-align:center;
     }
 
-    /* Hands / meld rows */
-    .handRow{
+    /* HAND SLIDER (always scrollable) */
+    #hand{
+      display:flex;
+      gap:10px;
+      overflow-x:auto;
+      -webkit-overflow-scrolling: touch;
+      padding:6px 2px 10px;
+    }
+    #hand::-webkit-scrollbar{display:none;}
+
+    /* Meld strip */
+    .meldTap{
       display:flex;gap:10px;overflow-x:auto;
       -webkit-overflow-scrolling:touch;
       padding:6px 2px 10px;
+      border-radius:14px;
+      border:1px solid rgba(255,255,255,.10);
+      background:rgba(0,0,0,.10);
+      cursor:pointer;
+    }
+    .meldTap::-webkit-scrollbar{display:none;}
+    .meldTap.active{
+      border-color:rgba(111,214,255,.45);
+      box-shadow:0 0 0 3px rgba(111,214,255,.10);
     }
 
     /* Playing cards */
@@ -111,21 +130,12 @@
     .card.black{color:#101018;}
     .card.sel{outline:3px solid rgba(111,214,255,.65); transform: translateY(-2px);}
 
-    .corner{
-      position:absolute; font-weight:900; font-size:14px; line-height:1.0;
-      display:flex; flex-direction:column; gap:3px;
-      text-shadow:0 1px 0 rgba(255,255,255,.35);
-    }
+    .corner{position:absolute;font-weight:900;font-size:14px;line-height:1.0;display:flex;flex-direction:column;gap:3px;}
     .tl{top:8px;left:8px;}
     .br{bottom:8px;right:8px;transform:rotate(180deg);}
-    .pip{
-      position:absolute; inset:0;
-      display:flex; align-items:center; justify-content:center;
-      font-size:28px; font-weight:900;
-      opacity:.88;
-    }
+    .pip{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font-size:28px;font-weight:900;opacity:.88;}
 
-    /* Facedown deck stack */
+    /* Deck stack (shrinks based on cards left) */
     .deckStack{
       width:78px;height:110px;margin:8px auto 0;
       position:relative;cursor:pointer;user-select:none;
@@ -137,8 +147,6 @@
       background: linear-gradient(180deg, rgba(111,214,255,.20), rgba(0,0,0,.35));
       box-shadow:0 12px 28px rgba(0,0,0,.45), 0 0 18px rgba(111,214,255,.12);
     }
-    .deckStack .back:nth-child(2){ transform: translate(4px, -4px); opacity:.95; }
-    .deckStack .back:nth-child(3){ transform: translate(8px, -8px); opacity:.85; }
     .deckStack .label{
       position:absolute;inset:0;
       display:flex;align-items:center;justify-content:center;
@@ -146,8 +154,9 @@
       text-shadow:0 0 14px rgba(111,214,255,.18);
     }
 
-    /* Unwanted scroll-peek strip */
-    .peekWrap{ margin-top:10px; }
+    /* Unwanted: top card shown, tap to open peek strip */
+    .hint{font-size:12px;color:rgba(242,243,255,.72);margin-top:8px;}
+    .peekWrap{margin-top:10px;}
     .peekStrip{
       display:flex;gap:10px;
       overflow-x:auto;-webkit-overflow-scrolling:touch;
@@ -156,42 +165,25 @@
       scroll-padding:40px;
       border-radius:14px;
       border:1px solid rgba(255,255,255,.12);
-      background: rgba(0,0,0,.14);
+      background:rgba(0,0,0,.14);
     }
-    .peekStrip::-webkit-scrollbar{ display:none; }
+    .peekStrip::-webkit-scrollbar{display:none;}
     .peekCard{
       scroll-snap-align:center;
       flex:0 0 auto;
-      transform: scale(.92);
+      transform:scale(.92);
       opacity:.78;
-      transition: transform .12s ease, opacity .12s ease, box-shadow .12s ease;
+      transition:transform .12s ease, opacity .12s ease, box-shadow .12s ease;
     }
     .peekCard.active{
-      transform: scale(1.02);
+      transform:scale(1.02);
       opacity:1;
-      box-shadow: 0 0 18px rgba(111,214,255,.12);
+      box-shadow:0 0 18px rgba(111,214,255,.12);
     }
 
     .btnRow{display:flex;gap:10px;}
     .btnRow .btn{flex:1;}
     .note{font-size:12px;color:rgba(242,243,255,.72);}
-    .hint{font-size:12px;color:rgba(242,243,255,.72);margin-top:8px;}
-
-    /* Meld containers (clickable to add onto) */
-    .meldGroup{margin-top:8px;}
-    .meldTap{
-      display:flex;gap:10px;overflow-x:auto;
-      -webkit-overflow-scrolling:touch;
-      padding:6px 2px 10px;
-      border-radius:14px;
-      border:1px solid rgba(255,255,255,.10);
-      background:rgba(0,0,0,.10);
-      cursor:pointer;
-    }
-    .meldTap.active{
-      border-color:rgba(111,214,255,.45);
-      box-shadow:0 0 0 3px rgba(111,214,255,.10);
-    }
 
     @media (max-width:360px){
       .card{width:66px;height:94px;}
