@@ -53,6 +53,10 @@ function render(players, messages) {
         </div>
         <div style="height:10px"></div>
         <button class="btn" id="copyLink">Copy link</button>
+
+        <!-- ✅ STEP 4 ADDED: Practice button -->
+        <div style="height:10px"></div>
+        <button class="btn cyan" id="practiceBtn">Practice vs Bots</button>
       </div>
 
       <div class="panel">
@@ -108,6 +112,11 @@ function render(players, messages) {
     } catch {
       prompt("Copy this link:", roomLink());
     }
+  };
+
+  // ✅ STEP 4 ADDED: Practice link (default 1 bot + easy)
+  document.getElementById("practiceBtn").onclick = () => {
+    location.href = `practice.html?bots=1&difficulty=easy`;
   };
 
   document.getElementById("saveName").onclick = async () => {
