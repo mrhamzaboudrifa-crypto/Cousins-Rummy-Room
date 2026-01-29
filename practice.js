@@ -1,7 +1,14 @@
-// Practice vs Bots (local) — stable rendering + proper mobile behavior
-// Turn: must Draw (deck OR unwanted) -> may lay meld(s) -> must Discard 1 to end.
-// Unwanted: you can peek; to take deeper card you must Take All.
-// Meld validation: Set 3-4 of a kind, Run same suit consecutive, Ace low/high.
+// Cousins Rummy Room — Practice vs Bots (LOCAL)
+// Mobile-stable rendering, proper card faces, unwanted pile as cards,
+// opponents' melds shown as physical cards when laid.
+//
+// Practice rules included:
+// - No jokers
+// - Valid melds: Set (3-4 of a kind), Run (same suit consecutive)
+// - Ace low (A-2-3) and Ace high (Q-K-A)
+// - Turn: must Draw (deck OR unwanted) -> may lay meld(s) -> must Discard 1 to end
+// - Unwanted: you can peek; to take deeper card you must Take All
+// - Timer: 60s, chime at 30s, double chime at 15s, auto draw+discard at 0
 
 const app = document.getElementById("app");
 
@@ -22,9 +29,10 @@ function shuffle(a){
 }
 const rankNum = (r)=> r==="A"?1: r==="J"?11: r==="Q"?12: r==="K"?13: Number(r);
 const isRed = (s)=> (s==="♥" || s==="♦");
+const cardLabel = (c)=> `${c.r}${c.s}`;
 
 function validSet(cards){
-  if (cards.length<3 || cards.length>4) return false;
+  if (cards.length < 3 || cards.length > 4) return false;
   const rr = cards[0].r;
   return cards.every(c=>c.r===rr);
 }
@@ -33,12 +41,13 @@ function consecutive(nums){
   return true;
 }
 function validRun(cards){
-  if (cards.length<3) return false;
+  if (cards.length < 3) return false;
   const suit = cards[0].s;
   if (!cards.every(c=>c.s===suit)) return false;
 
   let nums = cards.map(c=>rankNum(c.r)).sort((a,b)=>a-b);
   for (let i=1;i<nums.length;i++) if (nums[i]===nums[i-1]) return false;
+
   if (consecutive(nums)) return true;
 
   // Ace high
@@ -49,7 +58,7 @@ function validRun(cards){
   return false;
 }
 function validateMeld(cards){
-  if (cards.length<3) return {ok:false, why:"Select at least 3 cards."};
+  if (cards.length < 3) return {ok:false, why:"Select at least 3 cards."};
   if (validSet(cards)) return {ok:true, kind:"set"};
   if (validRun(cards)) return {ok:true, kind:"run"};
   return {ok:false, why:"Not a valid set or run."};
@@ -63,6 +72,7 @@ function qs(){
   };
 }
 
+// Smooth subtle chimes (works iPhone+Android after first interaction)
 let audioReady=false, ac=null;
 function unlockAudio(){
   if (audioReady) return;
@@ -90,30 +100,37 @@ const state = {
   difficulty: ["easy","mid","pro","goat"].includes(qs().difficulty) ? qs().difficulty : "easy",
   deck: [],
   unwanted: [],
-  players: [],
+  players: [], // {id,name,isBot,hand:[], melds:[]}
   dealer: 0,
   turn: 0,
-  phase: "draw", // draw -> play -> discard
+  phase: "draw", // draw -> discard
   selected: new Set(),
   peekIndex: 0,
   turnEndsAt: 0,
   warned30: false,
   warned15: false,
   didDraw: false,
-  // rendering control
+
+  // render control
   uiNeedsRender: true,
+
+  // IMPORTANT: preserve hand scroll position across rerenders
+  handScrollLeft: 0,
 };
 
-function botNames(n){ return ["Alice","Mike","John"].slice(0,n); }
-function cardLabel(c){ return `${c.r}${c.s}`; }
-
-function requestRender(){ state.uiNeedsRender = true; }
+function requestRender(){
+  const h = document.getElementById("hand");
+  if (h) state.handScrollLeft = h.scrollLeft || 0;
+  state.uiNeedsRender = true;
+}
 
 function render(){
   state.uiNeedsRender = false;
   if (state.screen==="setup") return renderSetup();
   return renderGame();
 }
+
+function botNames(n){ return ["Alice","Mike","John"].slice(0,n); }
 
 function renderSetup(){
   const name = localStorage.getItem("crr_name") || "You";
@@ -162,6 +179,7 @@ function renderSetup(){
   };
   document.getElementById("backBtn").onclick=()=>location.href="index.html";
 }
+
 function startGame(youName){
   state.deck = shuffle(makeDeck());
   state.unwanted = [];
@@ -184,7 +202,7 @@ function startGame(youName){
   state.unwanted.push(state.deck.pop());
 
   beginTurn(left);
-  state.screen = "game";
+  state.screen="game";
   requestRender();
   maybeBot();
 }
@@ -203,10 +221,30 @@ function beginTurn(i){
 function isYourTurn(){ return state.turn===0; }
 function currentPlayer(){ return state.players[state.turn]; }
 
+function cardFaceHtml(c, extraClass=""){
+  const colorClass = isRed(c.s) ? "red" : "black";
+  return `
+    <div class="card ${colorClass} ${extraClass}" data-id="${c.id}">
+      <div class="corner tl"><div>${c.r}</div><div>${c.s}</div></div>
+      <div class="pip">${c.s}</div>
+      <div class="corner br"><div>${c.r}</div><div>${c.s}</div></div>
+    </div>
+  `;
+}
+
+function renderMeldCards(meld){
+  return meld.map(c=>`
+    <div class="card ${isRed(c.s) ? "red" : "black"}">
+      <div class="corner tl"><div>${c.r}</div><div>${c.s}</div></div>
+      <div class="pip">${c.s}</div>
+      <div class="corner br"><div>${c.r}</div><div>${c.s}</div></div>
+    </div>
+  `).join("");
+}
+
 function renderGame(){
   const me = state.players[0];
 
-  // timer (display only; doesn't force full rerender constantly)
   const tLeft = Math.max(0, state.turnEndsAt - Date.now());
   const sec = Math.ceil(tLeft/1000);
   const danger = sec<=30 ? "danger" : "";
@@ -214,6 +252,27 @@ function renderGame(){
   const idx = Math.min(state.peekIndex, Math.max(0, state.unwanted.length-1));
   const peek = state.unwanted.length ? state.unwanted[state.unwanted.length-1-idx] : null;
   const viewingTop = idx===0;
+
+  // Opponents melds display (physical cards)
+  const oppMelds = state.players.slice(1).map(p=>{
+    if (!p.melds.length) return `
+      <div class="seatBox">
+        <b>${p.name}</b>
+        <div class="small">No melds yet</div>
+      </div>
+    `;
+    return `
+      <div class="seatBox">
+        <b>${p.name}</b>
+        <div class="small">Melds laid</div>
+        ${p.melds.map(m=>`
+          <div class="hand" style="margin-top:8px;">
+            ${renderMeldCards(m)}
+          </div>
+        `).join("")}
+      </div>
+    `;
+  }).join("");
 
   app.innerHTML = `
     <div class="safe">
@@ -252,7 +311,20 @@ function renderGame(){
               <b>Unwanted</b>
               <div class="small">${state.unwanted.length} cards</div>
               <div style="height:10px"></div>
-              <div class="small">Peek: ${peek ? cardLabel(peek) : "—"} ${idx?`(deep +${idx})`:"(top)"}</div>
+
+              <div class="small" style="margin-bottom:6px;">
+                Viewing: ${peek ? cardLabel(peek) : "—"} ${idx?`(deep +${idx})`:"(top)"}
+              </div>
+
+              <!-- physical card -->
+              <div style="display:flex;justify-content:center;">
+                ${peek ? `
+                  <div style="transform:scale(.95);transform-origin:center;">
+                    ${cardFaceHtml(peek)}
+                  </div>
+                ` : `<div class="small">Empty</div>`}
+              </div>
+
               <div style="height:10px"></div>
               <div class="btnRow">
                 <button class="btn" id="prevBtn" ${(!isYourTurn() || state.phase!=="draw" || state.unwanted.length<2)?"disabled":""}>◀</button>
@@ -270,13 +342,18 @@ function renderGame(){
           <div class="seatBox">
             <b>Your melds</b>
             <div class="small">Select cards → Lay Meld (min 3, blocks invalid)</div>
-            <div class="cardsLine">
-              ${me.melds.length
-                ? me.melds.map(m=>`<span class="mini">${m.map(cardLabel).join(" ")}</span>`).join("")
-                : `<span class="small">None yet</span>`
-              }
-            </div>
+            ${me.melds.length
+              ? me.melds.map(m=>`
+                  <div class="hand" style="margin-top:8px;">
+                    ${renderMeldCards(m)}
+                  </div>
+                `).join("")
+              : `<div class="small" style="margin-top:8px;">None yet</div>`
+            }
           </div>
+
+          <!-- Opponent melds shown as physical cards -->
+          ${oppMelds}
 
           <div class="seatBox">
             <div class="row">
@@ -289,13 +366,7 @@ function renderGame(){
 
             <div style="height:10px"></div>
             <div class="hand" id="hand">
-              ${me.hand.map(c=>`
-                <div class="card ${isRed(c.s) ? "red" : "black"} ${state.selected.has(c.id)?"sel":""}" data-id="${c.id}">
-                  <div class="corner tl"><div>${c.r}</div><div>${c.s}</div></div>
-                  <div class="pip">${c.s}</div>
-                  <div class="corner br"><div>${c.r}</div><div>${c.s}</div></div>
-                </div>
-              `).join("")}
+              ${me.hand.map(c=>cardFaceHtml(c, state.selected.has(c.id) ? "sel" : "")).join("")}
             </div>
 
             <div style="height:10px"></div>
@@ -310,7 +381,11 @@ function renderGame(){
     </div>
   `;
 
-  // --- events ---
+  // restore hand scroll after render (FIXES jumping to start)
+  const handEl = document.getElementById("hand");
+  if (handEl) handEl.scrollLeft = state.handScrollLeft || 0;
+
+  // events
   document.getElementById("exitBtn").onclick=()=>location.href="index.html";
 
   document.getElementById("drawBtn")?.addEventListener("click", ()=>{
@@ -371,7 +446,6 @@ function renderGame(){
 
 function drawFromDeck(playerIndex){
   if (!state.deck.length){
-    // reshuffle from unwanted except top? (simple: restart)
     state.deck = shuffle(makeDeck());
   }
   state.players[playerIndex].hand.push(state.deck.pop());
@@ -403,10 +477,10 @@ function layMeldHuman(){
   if (v.kind==="set" && cards.length>4){ alert("Sets are max 4."); return; }
 
   me.melds.push(cards.slice());
-  const remove = new Set(cards.map(c=>c.id));
-  me.hand = me.hand.filter(c=>!remove.has(c.id));
+  const rm = new Set(cards.map(c=>c.id));
+  me.hand = me.hand.filter(c=>!rm.has(c.id));
   state.selected.clear();
-  state.phase = "discard"; // still must discard
+  state.phase = "discard";
   requestRender();
 }
 
@@ -419,9 +493,8 @@ function discardOneHuman(){
   state.unwanted.push(c);
   state.selected.clear();
 
-  // win check (practice restarts)
   if (me.hand.length===0){
-    alert("You went out! Restarting practice hand.");
+    alert("You went out! Restarting practice.");
     state.screen="setup";
     requestRender();
     return;
@@ -437,13 +510,13 @@ function endTurn(){
   maybeBot();
 }
 
-/** ---------------- Bots (simpler, stable) ---------------- */
+/** ---------------- Bots ---------------- */
 
 function skill(){
   if (state.difficulty==="easy") return 0.45;
   if (state.difficulty==="mid") return 0.65;
   if (state.difficulty==="pro") return 0.82;
-  return 0.90; // GOAT (still beatable)
+  return 0.90; // GOAT
 }
 
 function maybeBot(){
@@ -457,19 +530,19 @@ function botTurn(){
   const p = state.players[i];
   if (!p || !p.isBot) return;
 
-  // 1) Draw decision
   const s = skill();
   const top = state.unwanted[state.unwanted.length-1] || null;
 
+  // draw
   if (top && Math.random()<s && topHelps(p.hand, top)){
     p.hand.push(state.unwanted.pop());
   } else {
     if (state.deck.length) p.hand.push(state.deck.pop());
   }
 
-  // 2) Try meld (0-2 times depending on difficulty)
+  // meld tries
   const tries = state.difficulty==="easy" ? 0 : (state.difficulty==="mid" ? 1 : 2);
-  for (let t=0; t<tries; t++){
+  for (let t=0;t<tries;t++){
     const meld = bestMeld(p.hand);
     if (!meld) break;
     p.melds.push(meld);
@@ -477,14 +550,13 @@ function botTurn(){
     p.hand = p.hand.filter(c=>!rm.has(c.id));
   }
 
-  // 3) Discard
+  // discard
   const disc = chooseDiscard(p.hand);
   p.hand = p.hand.filter(c=>c.id!==disc.id);
   state.unwanted.push(disc);
 
-  // bot win check
   if (p.hand.length===0){
-    alert(`${p.name} went out! Restarting practice hand.`);
+    alert(`${p.name} went out! Restarting practice.`);
     state.screen="setup";
     requestRender();
     return;
@@ -501,7 +573,6 @@ function topHelps(hand, card){
 }
 
 function bestMeld(hand){
-  // sets
   const byRank = {};
   for (const c of hand){
     byRank[c.r] = byRank[c.r] || [];
@@ -512,7 +583,6 @@ function bestMeld(hand){
     if (g.length>=3) return g.slice(0, Math.min(4, g.length));
   }
 
-  // runs (simple)
   for (const s of SUITS){
     const suitCards = hand.filter(c=>c.s===s).sort((a,b)=>rankNum(a.r)-rankNum(b.r));
     if (suitCards.length<3) continue;
@@ -526,16 +596,16 @@ function bestMeld(hand){
     if (cur.length>best.length) best=cur;
     if (best.length>=3) return best;
   }
-
   return null;
 }
 
 function chooseDiscard(hand){
   if (hand.length===1) return hand[0];
   const s = skill();
-  if (state.difficulty==="easy" && Math.random()>(s)) return hand[Math.floor(Math.random()*hand.length)];
+  if (state.difficulty==="easy" && Math.random()>(s)){
+    return hand[Math.floor(Math.random()*hand.length)];
+  }
 
-  // discard least-connected card
   let worst = hand[0];
   let worstScore = Infinity;
   for (const c of hand){
@@ -545,8 +615,7 @@ function chooseDiscard(hand){
       if (h.r===c.r) score+=2;
       if (h.s===c.s && Math.abs(rankNum(h.r)-rankNum(c.r))===1) score+=1;
     }
-    // add imperfection so it's beatable
-    score += (1-s) * Math.random()*3;
+    score += (1-s) * Math.random()*3; // imperfection
     if (score < worstScore){
       worstScore = score;
       worst = c;
@@ -555,15 +624,13 @@ function chooseDiscard(hand){
   return worst;
 }
 
-/** ---------------- Timer (NO constant full re-render) ---------------- */
+/** ---------------- Timer ---------------- */
 
 setInterval(()=>{
   if (state.screen!=="game") return;
 
-  const tLeft = Math.max(0, state.turnEndsAt - Date.now());
-  const sec = Math.ceil(tLeft/1000);
+  const sec = Math.ceil(Math.max(0, state.turnEndsAt-Date.now())/1000);
 
-  // update only the timer text (no full render)
   const timer = document.getElementById("timerText");
   if (timer){
     timer.textContent = `Turn: ${sec}s`;
@@ -575,7 +642,6 @@ setInterval(()=>{
   if (!state.warned15 && sec<=15){ state.warned15=true; doubleChime(); }
 
   if (sec<=0){
-    // timeout: draw from deck if not drawn, then discard random
     const p = currentPlayer();
     if (!p) return;
 
@@ -590,7 +656,6 @@ setInterval(()=>{
     endTurn();
   }
 
-  // render only if requested by actions
   if (state.uiNeedsRender) render();
 }, 250);
 
