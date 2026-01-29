@@ -1,14 +1,8 @@
 // Cousins Rummy Room — Practice vs Bots (LOCAL)
-// Mobile-stable rendering, proper card faces, unwanted pile as cards,
-// opponents' melds shown as physical cards when laid.
-//
-// Practice rules included:
-// - No jokers
-// - Valid melds: Set (3-4 of a kind), Run (same suit consecutive)
-// - Ace low (A-2-3) and Ace high (Q-K-A)
-// - Turn: must Draw (deck OR unwanted) -> may lay meld(s) -> must Discard 1 to end
-// - Unwanted: you can peek; to take deeper card you must Take All
-// - Timer: 60s, chime at 30s, double chime at 15s, auto draw+discard at 0
+// - Smooth (no full re-render spam)
+// - Hand scroll position preserved
+// - Unwanted pile = scrollable peek strip of physical cards (like picture)
+// - Opponents' melds shown as physical cards once laid
 
 const app = document.getElementById("app");
 
@@ -72,7 +66,7 @@ function qs(){
   };
 }
 
-// Smooth subtle chimes (works iPhone+Android after first interaction)
+// Chimes (after first tap)
 let audioReady=false, ac=null;
 function unlockAudio(){
   if (audioReady) return;
@@ -100,22 +94,17 @@ const state = {
   difficulty: ["easy","mid","pro","goat"].includes(qs().difficulty) ? qs().difficulty : "easy",
   deck: [],
   unwanted: [],
-  players: [], // {id,name,isBot,hand:[], melds:[]}
+  players: [],
   dealer: 0,
   turn: 0,
   phase: "draw", // draw -> discard
   selected: new Set(),
-  peekIndex: 0,
+  peekIndex: 0, // 0 = top within the visible strip
   turnEndsAt: 0,
   warned30: false,
   warned15: false,
-  didDraw: false,
-
-  // render control
   uiNeedsRender: true,
-
-  // IMPORTANT: preserve hand scroll position across rerenders
-  handScrollLeft: 0,
+  handScrollLeft: 0
 };
 
 function requestRender(){
@@ -123,7 +112,6 @@ function requestRender(){
   if (h) state.handScrollLeft = h.scrollLeft || 0;
   state.uiNeedsRender = true;
 }
-
 function render(){
   state.uiNeedsRender = false;
   if (state.screen==="setup") return renderSetup();
@@ -191,14 +179,10 @@ function startGame(youName){
   state.dealer = Math.floor(Math.random()*state.players.length);
   const left = (state.dealer+1)%state.players.length;
 
-  // Deal 7 each
   for (let i=0;i<7;i++){
     for (const p of state.players) p.hand.push(state.deck.pop());
   }
-  // Left of dealer gets 8
   state.players[left].hand.push(state.deck.pop());
-
-  // start unwanted
   state.unwanted.push(state.deck.pop());
 
   beginTurn(left);
@@ -214,7 +198,6 @@ function beginTurn(i){
   state.peekIndex=0;
   state.warned30=false;
   state.warned15=false;
-  state.didDraw=false;
   state.turnEndsAt = Date.now()+60000;
 }
 
@@ -242,18 +225,23 @@ function renderMeldCards(meld){
   `).join("");
 }
 
+function visibleUnwanted(){
+  // show last 16, reversed so the TOP is first (depth 0)
+  return state.unwanted.slice(-16).reverse();
+}
+
 function renderGame(){
   const me = state.players[0];
 
-  const tLeft = Math.max(0, state.turnEndsAt - Date.now());
-  const sec = Math.ceil(tLeft/1000);
+  const sec = Math.ceil(Math.max(0, state.turnEndsAt - Date.now())/1000);
   const danger = sec<=30 ? "danger" : "";
 
-  const idx = Math.min(state.peekIndex, Math.max(0, state.unwanted.length-1));
-  const peek = state.unwanted.length ? state.unwanted[state.unwanted.length-1-idx] : null;
-  const viewingTop = idx===0;
+  const vis = visibleUnwanted();
+  const maxDepth = Math.max(0, vis.length-1);
+  const depth = Math.min(state.peekIndex, maxDepth);
+  const peek = vis.length ? vis[depth] : null;
 
-  // Opponents melds display (physical cards)
+  // opponents melds
   const oppMelds = state.players.slice(1).map(p=>{
     if (!p.melds.length) return `
       <div class="seatBox">
@@ -310,32 +298,38 @@ function renderGame(){
             <div class="pileBox">
               <b>Unwanted</b>
               <div class="small">${state.unwanted.length} cards</div>
-              <div style="height:10px"></div>
 
-              <div class="small" style="margin-bottom:6px;">
-                Viewing: ${peek ? cardLabel(peek) : "—"} ${idx?`(deep +${idx})`:"(top)"}
+              <div class="small" style="margin-top:8px;">
+                Selected: ${peek ? cardLabel(peek) : "—"} ${depth?`(deep +${depth})`:"(top)"}
               </div>
 
-              <!-- physical card -->
-              <div style="display:flex;justify-content:center;">
-                ${peek ? `
-                  <div style="transform:scale(.95);transform-origin:center;">
-                    ${cardFaceHtml(peek)}
-                  </div>
-                ` : `<div class="small">Empty</div>`}
+              <div class="peekWrap">
+                <div class="peekStrip" id="unwantedScroll">
+                  ${
+                    vis.length
+                      ? vis.map((c,i)=>`
+                          <div class="peekCard ${i===depth ? "active" : ""}" data-depth="${i}">
+                            ${cardFaceHtml(c)}
+                          </div>
+                        `).join("")
+                      : `<div class="small">Empty</div>`
+                  }
+                </div>
               </div>
 
               <div style="height:10px"></div>
               <div class="btnRow">
-                <button class="btn" id="prevBtn" ${(!isYourTurn() || state.phase!=="draw" || state.unwanted.length<2)?"disabled":""}>◀</button>
-                <button class="btn" id="nextBtn" ${(!isYourTurn() || state.phase!=="draw" || state.unwanted.length<2)?"disabled":""}>▶</button>
+                <button class="btn cyan" id="takeTopBtn"
+                  ${(!isYourTurn() || state.phase!=="draw" || !peek || depth!==0)?"disabled":""}>
+                  Take Top
+                </button>
+                <button class="btn" id="takeAllBtn"
+                  ${(!isYourTurn() || state.phase!=="draw" || !peek)?"disabled":""}>
+                  Take All
+                </button>
               </div>
-              <div style="height:10px"></div>
-              <div class="btnRow">
-                <button class="btn cyan" id="takeTopBtn" ${(!isYourTurn() || state.phase!=="draw" || !peek || !viewingTop)?"disabled":""}>Take Top</button>
-                <button class="btn" id="takeAllBtn" ${(!isYourTurn() || state.phase!=="draw" || !peek)?"disabled":""}>Take All</button>
-              </div>
-              ${(!viewingTop && peek) ? `<div class="note" style="margin-top:8px;">To take a deeper card, you must Take All.</div>` : ``}
+
+              ${(depth!==0 && peek) ? `<div class="note" style="margin-top:8px;">Deeper card selected — you must Take All.</div>` : ``}
             </div>
           </div>
 
@@ -352,7 +346,6 @@ function renderGame(){
             }
           </div>
 
-          <!-- Opponent melds shown as physical cards -->
           ${oppMelds}
 
           <div class="seatBox">
@@ -381,29 +374,57 @@ function renderGame(){
     </div>
   `;
 
-  // restore hand scroll after render (FIXES jumping to start)
+  // restore hand scroll position (fixes jump-to-start)
   const handEl = document.getElementById("hand");
   if (handEl) handEl.scrollLeft = state.handScrollLeft || 0;
 
-  // events
+  // Unwanted: tap to select
+  const strip = document.getElementById("unwantedScroll");
+  if (strip){
+    strip.querySelectorAll("[data-depth]").forEach(el=>{
+      el.onclick = () => {
+        if (!isYourTurn() || state.phase !== "draw") return;
+        state.peekIndex = Number(el.dataset.depth || "0");
+        requestRender();
+      };
+    });
+
+    // Unwanted: scroll-select nearest to center (debounced)
+    let t = null;
+    strip.addEventListener("scroll", () => {
+      if (!isYourTurn() || state.phase !== "draw") return;
+      if (t) clearTimeout(t);
+      t = setTimeout(() => {
+        const rect = strip.getBoundingClientRect();
+        const centerX = rect.left + rect.width / 2;
+
+        let bestDepth = 0;
+        let bestDist = Infinity;
+
+        strip.querySelectorAll("[data-depth]").forEach(el => {
+          const r = el.getBoundingClientRect();
+          const cx = r.left + r.width / 2;
+          const dist = Math.abs(cx - centerX);
+          if (dist < bestDist) {
+            bestDist = dist;
+            bestDepth = Number(el.dataset.depth || "0");
+          }
+        });
+
+        if (bestDepth !== state.peekIndex) {
+          state.peekIndex = bestDepth;
+          requestRender();
+        }
+      }, 80);
+    }, { passive:true });
+  }
+
   document.getElementById("exitBtn").onclick=()=>location.href="index.html";
 
   document.getElementById("drawBtn")?.addEventListener("click", ()=>{
     if (!isYourTurn() || state.phase!=="draw") return;
     drawFromDeck(0);
     state.phase="discard";
-    requestRender();
-  });
-
-  document.getElementById("prevBtn")?.addEventListener("click", ()=>{
-    if (!isYourTurn() || state.phase!=="draw") return;
-    state.peekIndex = Math.min(state.peekIndex+1, Math.max(0,state.unwanted.length-1));
-    requestRender();
-  });
-
-  document.getElementById("nextBtn")?.addEventListener("click", ()=>{
-    if (!isYourTurn() || state.phase!=="draw") return;
-    state.peekIndex = Math.max(0, state.peekIndex-1);
     requestRender();
   });
 
@@ -449,24 +470,19 @@ function drawFromDeck(playerIndex){
     state.deck = shuffle(makeDeck());
   }
   state.players[playerIndex].hand.push(state.deck.pop());
-  state.didDraw = true;
 }
-
 function takeTop(playerIndex){
   const top = state.unwanted.pop();
   if (!top) return;
   state.players[playerIndex].hand.push(top);
   state.peekIndex = 0;
-  state.didDraw = true;
 }
-
 function takeAll(playerIndex){
   if (!state.unwanted.length) return;
   while(state.unwanted.length){
     state.players[playerIndex].hand.push(state.unwanted.shift());
   }
   state.peekIndex = 0;
-  state.didDraw = true;
 }
 
 function layMeldHuman(){
@@ -499,7 +515,6 @@ function discardOneHuman(){
     requestRender();
     return;
   }
-
   endTurn();
 }
 
@@ -510,21 +525,18 @@ function endTurn(){
   maybeBot();
 }
 
-/** ---------------- Bots ---------------- */
-
+// Bots (simple)
 function skill(){
   if (state.difficulty==="easy") return 0.45;
   if (state.difficulty==="mid") return 0.65;
   if (state.difficulty==="pro") return 0.82;
-  return 0.90; // GOAT
+  return 0.90;
 }
-
 function maybeBot(){
   const p = currentPlayer();
   if (!p.isBot) return;
   setTimeout(()=>botTurn(), 520);
 }
-
 function botTurn(){
   const i = state.turn;
   const p = state.players[i];
@@ -533,14 +545,12 @@ function botTurn(){
   const s = skill();
   const top = state.unwanted[state.unwanted.length-1] || null;
 
-  // draw
   if (top && Math.random()<s && topHelps(p.hand, top)){
     p.hand.push(state.unwanted.pop());
   } else {
     if (state.deck.length) p.hand.push(state.deck.pop());
   }
 
-  // meld tries
   const tries = state.difficulty==="easy" ? 0 : (state.difficulty==="mid" ? 1 : 2);
   for (let t=0;t<tries;t++){
     const meld = bestMeld(p.hand);
@@ -550,7 +560,6 @@ function botTurn(){
     p.hand = p.hand.filter(c=>!rm.has(c.id));
   }
 
-  // discard
   const disc = chooseDiscard(p.hand);
   p.hand = p.hand.filter(c=>c.id!==disc.id);
   state.unwanted.push(disc);
@@ -564,14 +573,12 @@ function botTurn(){
 
   endTurn();
 }
-
 function topHelps(hand, card){
   const sameRank = hand.filter(c=>c.r===card.r).length;
   if (sameRank>=2) return true;
   const adj = hand.some(c=>c.s===card.s && Math.abs(rankNum(c.r)-rankNum(card.r))===1);
   return adj;
 }
-
 function bestMeld(hand){
   const byRank = {};
   for (const c of hand){
@@ -598,14 +605,12 @@ function bestMeld(hand){
   }
   return null;
 }
-
 function chooseDiscard(hand){
   if (hand.length===1) return hand[0];
   const s = skill();
   if (state.difficulty==="easy" && Math.random()>(s)){
     return hand[Math.floor(Math.random()*hand.length)];
   }
-
   let worst = hand[0];
   let worstScore = Infinity;
   for (const c of hand){
@@ -615,22 +620,17 @@ function chooseDiscard(hand){
       if (h.r===c.r) score+=2;
       if (h.s===c.s && Math.abs(rankNum(h.r)-rankNum(c.r))===1) score+=1;
     }
-    score += (1-s) * Math.random()*3; // imperfection
-    if (score < worstScore){
-      worstScore = score;
-      worst = c;
-    }
+    score += (1-s) * Math.random()*3;
+    if (score < worstScore){ worstScore = score; worst = c; }
   }
   return worst;
 }
 
-/** ---------------- Timer ---------------- */
-
+// Timer (no constant full re-render)
 setInterval(()=>{
   if (state.screen!=="game") return;
 
   const sec = Math.ceil(Math.max(0, state.turnEndsAt-Date.now())/1000);
-
   const timer = document.getElementById("timerText");
   if (timer){
     timer.textContent = `Turn: ${sec}s`;
