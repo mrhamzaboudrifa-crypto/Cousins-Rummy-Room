@@ -1,12 +1,12 @@
 // Cousins Rummy Room — Practice vs Bots (LOCAL)
-// Features:
-// - Per-round rule: must lay 1 meld first in the round to unlock "add to meld"
-// - Add to meld: tap a meld to select, then Add Selected (1+ cards)
-// - Deck is a facedown stack you tap
-// - Clear turn banner + highlight active player
-// - Exit button moved to header + confirm
-// - Unwanted is scrollable peek strip (like your picture)
-// - Hand scroll position preserved
+// FIXED:
+// - Hand slider always scrollable and never resets
+// - Unwanted: show TOP card, tap to OPEN peek strip (scroll/ tap to select depth)
+// - Deck: facedown stack shrinks visually as deck gets smaller
+// - Clear "YOUR TURN" banner + highlights active player
+// - Exit moved + confirm
+// - RULE: must lay at least 1 meld in the ROUND to unlock adding to any meld
+// - Add-to-meld: tap a meld to target, select 1+ cards, Add Selected (validated)
 
 const app = document.getElementById("app");
 
@@ -25,7 +25,6 @@ function shuffle(a){
   }
   return a;
 }
-
 const rankNum = (r)=> r==="A"?1: r==="J"?11: r==="Q"?12: r==="K"?13: Number(r);
 const isRed = (s)=> (s==="♥" || s==="♦");
 const cardLabel = (c)=> `${c.r}${c.s}`;
@@ -71,7 +70,7 @@ function canAddToMeld(meld, addCards){
   const asSet = validSet(meld);
   const asRun = validRun(meld);
 
-  // SET: same rank, max 4
+  // SET: same rank, max 4 total
   if (asSet){
     const rank = meld[0].r;
     if (meld.length + addCards.length > 4) return {ok:false};
@@ -79,7 +78,7 @@ function canAddToMeld(meld, addCards){
     return {ok:true, newMeld: meld.concat(addCards)};
   }
 
-  // RUN: same suit, must extend ends in order, supports A low/high
+  // RUN: same suit, must extend ends; supports A low/high
   if (asRun){
     const suit = meld[0].s;
     if (!addCards.every(c=>c.s===suit)) return {ok:false};
@@ -151,20 +150,31 @@ const state = {
   screen: "setup",
   bots: qs().bots,
   difficulty: ["easy","mid","pro","goat"].includes(qs().difficulty) ? qs().difficulty : "easy",
+
   deck: [],
   unwanted: [],
-  players: [], // {id,name,isBot,hand:[], melds:[][], hasLaidMeldThisRound:boolean}
+
+  // players: {id,name,isBot,hand:[], melds:[][], hasLaidMeldThisRound:boolean}
+  players: [],
   dealer: 0,
   turn: 0,
-  phase: "draw", // draw -> play/discard (we keep "discard" step explicit)
-  selected: new Set(),      // selected HAND cards
-  peekIndex: 0,             // selected unwanted depth in visible strip (0=top)
-  selectedMeld: null,       // {pid, mid} which meld is selected to add to
+  phase: "draw", // draw -> discard
+
+  // UI
+  selected: new Set(),     // selected HAND cards
+  selectedMeld: null,      // {pid, mid} target meld for adding
+  handScrollLeft: 0,
+
+  // Unwanted UI behavior
+  unwantedOpen: false,     // TOP card shown; tap to open peek strip
+  peekIndex: 0,            // chosen depth within visible list (0 = top of pile)
+
+  // timer
   turnEndsAt: 0,
   warned30: false,
   warned15: false,
-  uiNeedsRender: true,
-  handScrollLeft: 0
+
+  uiNeedsRender: true
 };
 
 function requestRender(){
@@ -172,7 +182,6 @@ function requestRender(){
   if (h) state.handScrollLeft = h.scrollLeft || 0;
   state.uiNeedsRender = true;
 }
-
 function render(){
   state.uiNeedsRender = false;
   if (state.screen==="setup") return renderSetup();
@@ -180,7 +189,6 @@ function render(){
 }
 
 function botNames(n){ return ["Alice","Mike","John"].slice(0,n); }
-
 function renderSetup(){
   const name = localStorage.getItem("crr_name") || "You";
   app.innerHTML = `
@@ -232,54 +240,66 @@ function renderSetup(){
 
   document.getElementById("startBtn").onclick=()=>{
     unlockAudio();
-    startGame(name);
+    startHand(name);
   };
   document.getElementById("backBtn").onclick=()=>location.href="index.html";
 }
 
-function startGame(youName){
+function startHand(youName){
+  // fresh deck/piles
   state.deck = shuffle(makeDeck());
   state.unwanted = [];
   state.selected.clear();
   state.selectedMeld = null;
+  state.handScrollLeft = 0;
+
+  // reset unwanted UI
+  state.unwantedOpen = false;
   state.peekIndex = 0;
 
+  // players
   state.players = [
     {id:0, name: youName || "You", isBot:false, hand:[], melds:[], hasLaidMeldThisRound:false},
     ...botNames(state.bots).map((n,i)=>({id:i+1, name:n, isBot:true, hand:[], melds:[], hasLaidMeldThisRound:false}))
   ];
 
+  // dealer and first player (left of dealer)
   state.dealer = Math.floor(Math.random()*state.players.length);
-  const left = (state.dealer+1)%state.players.length;
+  const left = (state.dealer + 1) % state.players.length;
 
   // Deal 7 each
   for (let i=0;i<7;i++){
     for (const p of state.players) p.hand.push(state.deck.pop());
   }
-  // Left of dealer gets 8
+  // left of dealer gets 8
   state.players[left].hand.push(state.deck.pop());
 
-  // Start unwanted
+  // start unwanted pile with 1 card
   state.unwanted.push(state.deck.pop());
 
+  // start turn
   beginTurn(left);
-  state.screen="game";
+
+  state.screen = "game";
   requestRender();
   maybeBot();
 }
 
 function beginTurn(i){
-  state.turn=i;
-  state.phase="draw";
+  state.turn = i;
+  state.phase = "draw";
   state.selected.clear();
   state.selectedMeld = null;
+
+  state.unwantedOpen = false;
   state.peekIndex = 0;
-  state.warned30=false;
-  state.warned15=false;
-  state.turnEndsAt = Date.now()+60000;
+
+  state.warned30 = false;
+  state.warned15 = false;
+  state.turnEndsAt = Date.now() + 60000;
 }
 
-function isYourTurn(){ return state.turn===0; }
+function isYourTurn(){ return state.turn === 0; }
 function currentPlayer(){ return state.players[state.turn]; }
 
 function cardFaceHtml(c, extraClass=""){
@@ -293,7 +313,7 @@ function cardFaceHtml(c, extraClass=""){
   `;
 }
 
-function renderMeld(meld){
+function renderMeldCards(meld){
   return meld.map(c=>`
     <div class="card ${isRed(c.s) ? "red" : "black"}">
       <div class="corner tl"><div>${c.r}</div><div>${c.s}</div></div>
@@ -303,9 +323,27 @@ function renderMeld(meld){
   `).join("");
 }
 
+// visible slice for unwanted peek (top of pile is index 0)
 function visibleUnwanted(){
-  // show last 16; TOP card is index 0
   return state.unwanted.slice(-16).reverse();
+}
+
+function drawFromDeck(playerIndex){
+  if (!state.deck.length) state.deck = shuffle(makeDeck());
+  state.players[playerIndex].hand.push(state.deck.pop());
+}
+function takeTop(playerIndex){
+  const top = state.unwanted.pop();
+  if (!top) return;
+  state.players[playerIndex].hand.push(top);
+  state.peekIndex = 0;
+}
+function takeAll(playerIndex){
+  if (!state.unwanted.length) return;
+  while(state.unwanted.length){
+    state.players[playerIndex].hand.push(state.unwanted.shift());
+  }
+  state.peekIndex = 0;
 }
 function renderGame(){
   const me = state.players[0];
@@ -313,37 +351,48 @@ function renderGame(){
   const sec = Math.ceil(Math.max(0, state.turnEndsAt - Date.now())/1000);
   const danger = sec<=30 ? "danger" : "";
 
+  const isMe = isYourTurn();
+  const turnName = currentPlayer().name;
+
+  // Deck thickness based on remaining cards
+  const frac = Math.max(0, Math.min(1, state.deck.length / 52));
+  const layers = frac > 0.66 ? 3 : frac > 0.33 ? 2 : 1;
+
+  // Unwanted peek data (only used when open)
   const vis = visibleUnwanted();
   const maxDepth = Math.max(0, vis.length-1);
   const depth = Math.min(state.peekIndex, maxDepth);
   const peek = vis.length ? vis[depth] : null;
+  const topCard = state.unwanted.length ? state.unwanted[state.unwanted.length-1] : null;
 
-  const turnName = currentPlayer().name;
-  const isMe = isYourTurn();
+  const bannerText = isMe ? "YOUR TURN" : `${turnName.toUpperCase()}'S TURN`;
+  const bannerHint = isMe
+    ? (state.phase==="draw" ? "Draw from Deck or take from Unwanted" : "Lay / Add, then Discard 1")
+    : "Waiting…";
 
-  // Opponent seats (highlight whose turn)
+  // Seats (highlight active player)
   const seatsHtml = state.players.slice(1).map(p=>`
     <div class="seatBox ${p.id===state.turn ? "activeTurn":""}">
       <b>${p.name}</b> <span class="small">${p.id===state.turn ? "• TURN" : ""}</span>
       <div class="small">Cards left: ${p.hand.length}</div>
-      <div class="small">${p.hasLaidMeldThisRound ? "Can add to melds ✅" : "Must lay 1 meld first ⛔️"}</div>
+      <div class="small">${p.hasLaidMeldThisRound ? "Can add ✅" : "Lay 1 meld first ⛔️"}</div>
     </div>
   `).join("");
 
-  // My melds (clickable groups to select for adding)
+  // My melds (tap to select for add)
   const myMeldsHtml = me.melds.length
     ? me.melds.map((m, mid)=>`
-        <div class="meldGroup">
+        <div style="margin-top:8px;">
           <div class="small">Meld ${mid+1}</div>
           <div class="meldTap ${state.selectedMeld && state.selectedMeld.pid===0 && state.selectedMeld.mid===mid ? "active":""}"
                data-pid="0" data-mid="${mid}">
-            ${renderMeld(m)}
+            ${renderMeldCards(m)}
           </div>
         </div>
       `).join("")
     : `<div class="small" style="margin-top:8px;">None yet</div>`;
 
-  // Opponents melds (clickable, only show once they exist)
+  // Opponent melds (tap to select for add)
   const oppMeldsHtml = state.players.slice(1).map(p=>{
     if (!p.melds.length){
       return `
@@ -358,25 +407,16 @@ function renderGame(){
         <b>${p.name}</b>
         <div class="small">Melds (tap to select)</div>
         ${p.melds.map((m, mid)=>`
-          <div class="meldGroup">
+          <div style="margin-top:8px;">
             <div class="meldTap ${state.selectedMeld && state.selectedMeld.pid===p.id && state.selectedMeld.mid===mid ? "active":""}"
                  data-pid="${p.id}" data-mid="${mid}">
-              ${renderMeld(m)}
+              ${renderMeldCards(m)}
             </div>
           </div>
         `).join("")}
       </div>
     `;
   }).join("");
-
-  // Big turn banner
-  const bannerText = isMe ? "YOUR TURN" : `${turnName.toUpperCase()}'S TURN`;
-  const bannerHint = isMe
-    ? (state.phase==="draw" ? "Draw from Deck or Unwanted" : "Lay / Add, then Discard 1 to end turn")
-    : "Waiting for other player…";
-
-  // Allowed to add to melds this round?
-  const canAddThisRound = me.hasLaidMeldThisRound;
 
   app.innerHTML = `
     <div class="safe">
@@ -408,56 +448,82 @@ function renderGame(){
               <b>Deck</b>
               <div class="small">${state.deck.length} left</div>
               <div class="deckStack" id="deckTap" title="Tap to draw">
-                <div class="back"></div>
-                <div class="back"></div>
-                <div class="back"></div>
+                ${layers>=3 ? `<div class="back" style="transform:translate(8px,-8px);opacity:${0.55+0.30*frac}"></div>` : ``}
+                ${layers>=2 ? `<div class="back" style="transform:translate(4px,-4px);opacity:${0.70+0.25*frac}"></div>` : ``}
+                <div class="back" style="opacity:${0.85+0.15*frac}"></div>
                 <div class="label">TAP</div>
               </div>
-              <div class="hint">Tap the deck to draw 1</div>
+              <div class="hint">Tap to draw 1</div>
             </div>
 
             <div class="pileBox">
               <b>Unwanted</b>
               <div class="small">${state.unwanted.length} cards</div>
 
-              <div class="small" style="margin-top:8px;">
-                Selected: ${peek ? cardLabel(peek) : "—"} ${depth?`(deep +${depth})`:"(top)"}
+              <div style="height:10px"></div>
+
+              <!-- TOP card always shown -->
+              <div style="display:flex;justify-content:center;">
+                ${
+                  topCard
+                    ? `<div id="topUnwantedTap" style="transform:scale(.98)">${cardFaceHtml(topCard)}</div>`
+                    : `<div class="small">Empty</div>`
+                }
               </div>
 
-              <div class="peekWrap">
-                <div class="peekStrip" id="unwantedScroll">
-                  ${
-                    vis.length
-                      ? vis.map((c,i)=>`
+              ${topCard ? `<div class="hint">${state.unwantedOpen ? "Tap top card to close peek" : "Tap top card to peek/scroll"}</div>` : ``}
+
+              ${
+                state.unwantedOpen && topCard
+                  ? `
+                    <div class="peekWrap">
+                      <div class="peekStrip" id="unwantedScroll">
+                        ${vis.map((c,i)=>`
                           <div class="peekCard ${i===depth ? "active":""}" data-depth="${i}">
                             ${cardFaceHtml(c)}
                           </div>
-                        `).join("")
-                      : `<div class="small">Empty</div>`
-                  }
-                </div>
-              </div>
+                        `).join("")}
+                      </div>
+                    </div>
 
-              <div style="height:10px"></div>
-              <div class="btnRow">
-                <button class="btn cyan" id="takeTopBtn"
-                  ${(!isMe || state.phase!=="draw" || !peek || depth!==0)?"disabled":""}>
-                  Take Top
-                </button>
-                <button class="btn" id="takeAllBtn"
-                  ${(!isMe || state.phase!=="draw" || !peek)?"disabled":""}>
-                  Take All
-                </button>
-              </div>
+                    <div class="small" style="margin-top:8px;">
+                      Selected: ${peek ? cardLabel(peek) : "—"} ${depth?`(deep +${depth})`:"(top)"}
+                    </div>
 
-              ${(depth!==0 && peek) ? `<div class="note" style="margin-top:8px;">Deeper card selected — you must Take All.</div>` : ``}
+                    <div style="height:10px"></div>
+                    <div class="btnRow">
+                      <button class="btn cyan" id="takeTopBtn"
+                        ${(!isMe || state.phase!=="draw" || depth!==0)?"disabled":""}>
+                        Take Top
+                      </button>
+                      <button class="btn" id="takeAllBtn"
+                        ${(!isMe || state.phase!=="draw")?"disabled":""}>
+                        Take All
+                      </button>
+                    </div>
+
+                    ${(depth!==0) ? `<div class="note" style="margin-top:8px;">Deeper selected — must Take All.</div>` : ``}
+                  `
+                  : `
+                    <div class="btnRow" style="margin-top:10px;">
+                      <button class="btn cyan" id="takeTopBtn"
+                        ${(!isMe || state.phase!=="draw" || !topCard)?"disabled":""}>
+                        Take Top
+                      </button>
+                      <button class="btn" id="takeAllBtn"
+                        ${(!isMe || state.phase!=="draw" || !topCard)?"disabled":""}>
+                        Take All
+                      </button>
+                    </div>
+                  `
+              }
             </div>
           </div>
 
           <div class="seatBox">
             <b>Your melds</b>
             <div class="small">
-              ${me.hasLaidMeldThisRound ? "Add-to-meld is unlocked ✅" : "You must lay at least 1 meld this round to unlock add-to-meld ⛔️"}
+              ${me.hasLaidMeldThisRound ? "Add-to-meld unlocked ✅" : "Lay 1 meld this ROUND to unlock add-to-meld ⛔️"}
             </div>
             ${myMeldsHtml}
           </div>
@@ -470,11 +536,13 @@ function renderGame(){
                 <b>Your hand</b>
                 <div class="small">Phase: ${state.phase.toUpperCase()}</div>
               </div>
-              <div class="small">${state.selectedMeld ? `Selected meld: P${state.selectedMeld.pid} / #${state.selectedMeld.mid+1}` : "No meld selected"}</div>
+              <div class="small">
+                ${state.selectedMeld ? `Target: P${state.selectedMeld.pid} / Meld ${state.selectedMeld.mid+1}` : "Target: none"}
+              </div>
             </div>
 
             <div style="height:10px"></div>
-            <div class="handRow" id="hand">
+            <div id="hand">
               ${me.hand.map(c=>cardFaceHtml(c, state.selected.has(c.id) ? "sel" : "")).join("")}
             </div>
 
@@ -482,7 +550,7 @@ function renderGame(){
             <div class="btnRow">
               <button class="btn cyan" id="layBtn" ${(!isMe || state.phase==="draw")?"disabled":""}>Lay Meld</button>
               <button class="btn" id="addBtn"
-                ${(!isMe || state.phase==="draw" || !canAddThisRound || !state.selectedMeld)?"disabled":""}>
+                ${(!isMe || state.phase==="draw" || !me.hasLaidMeldThisRound || !state.selectedMeld)?"disabled":""}>
                 Add Selected
               </button>
             </div>
@@ -493,9 +561,7 @@ function renderGame(){
               <button class="btn" id="clearSelBtn" ${(!isMe)?"disabled":""}>Clear</button>
             </div>
 
-            <div class="note" style="margin-top:8px;">
-              Turn flow: Draw → (Lay / Add) → Discard 1.
-            </div>
+            <div class="note" style="margin-top:8px;">Turn: Draw → (Lay/Add) → Discard 1.</div>
           </div>
         </div>
       </div>
@@ -506,33 +572,62 @@ function renderGame(){
   const handEl = document.getElementById("hand");
   if (handEl) handEl.scrollLeft = state.handScrollLeft || 0;
 
-  // Exit moved + confirm
+  // Exit
   document.getElementById("exitMini").onclick=()=>{
     if (confirm("Exit practice and go back to lobby?")) location.href="index.html";
   };
 
-  // Hand selection
-  document.querySelectorAll(".card[data-id]").forEach(el=>{
-    el.onclick=()=>{
-      if (!isYourTurn()) return;
-      if (state.phase==="draw") return; // cannot select before drawing
-      const id = el.dataset.id;
-      if (state.selected.has(id)) state.selected.delete(id);
-      else state.selected.add(id);
+  // Tap TOP unwanted to open/close peek
+  const topTap = document.getElementById("topUnwantedTap");
+  if (topTap){
+    topTap.onclick = () => {
+      if (!isYourTurn() || state.phase !== "draw") return;
+      state.unwantedOpen = !state.unwantedOpen;
+      state.peekIndex = 0;
       requestRender();
     };
-  });
+  }
 
-  // Tap meld to select destination for Add Selected
-  document.querySelectorAll(".meldTap[data-pid][data-mid]").forEach(el=>{
-    el.onclick=()=>{
-      if (!isYourTurn()) return;
-      const pid = Number(el.dataset.pid);
-      const mid = Number(el.dataset.mid);
-      state.selectedMeld = {pid, mid};
-      requestRender();
-    };
-  });
+  // Unwanted peek: tap/scroll select (ONLY when open)
+  if (state.unwantedOpen){
+    const strip = document.getElementById("unwantedScroll");
+    if (strip){
+      strip.querySelectorAll("[data-depth]").forEach(el=>{
+        el.onclick = () => {
+          if (!isYourTurn() || state.phase !== "draw") return;
+          state.peekIndex = Number(el.dataset.depth || "0");
+          requestRender();
+        };
+      });
+
+      let t = null;
+      strip.addEventListener("scroll", () => {
+        if (!isYourTurn() || state.phase !== "draw") return;
+        if (t) clearTimeout(t);
+        t = setTimeout(() => {
+          const rect = strip.getBoundingClientRect();
+          const centerX = rect.left + rect.width / 2;
+
+          let bestDepth = 0;
+          let bestDist = Infinity;
+          strip.querySelectorAll("[data-depth]").forEach(el => {
+            const r = el.getBoundingClientRect();
+            const cx = r.left + r.width / 2;
+            const dist = Math.abs(cx - centerX);
+            if (dist < bestDist){
+              bestDist = dist;
+              bestDepth = Number(el.dataset.depth || "0");
+            }
+          });
+
+          if (bestDepth !== state.peekIndex){
+            state.peekIndex = bestDepth;
+            requestRender();
+          }
+        }, 80);
+      }, { passive:true });
+    }
+  }
 
   // Deck tap-to-draw
   document.getElementById("deckTap")?.addEventListener("click", ()=>{
@@ -542,63 +637,48 @@ function renderGame(){
     requestRender();
   });
 
-  // Unwanted take
+  // Take unwanted
   document.getElementById("takeTopBtn")?.addEventListener("click", ()=>{
     if (!isYourTurn() || state.phase!=="draw") return;
-    if (state.peekIndex !== 0) return;
+
+    // If peek open and depth not top, cannot take top
+    if (state.unwantedOpen && state.peekIndex !== 0) return;
+
     takeTop(0);
     state.phase="discard";
+    state.unwantedOpen = false;
     requestRender();
   });
+
   document.getElementById("takeAllBtn")?.addEventListener("click", ()=>{
     if (!isYourTurn() || state.phase!=="draw") return;
     takeAll(0);
     state.phase="discard";
+    state.unwantedOpen = false;
     requestRender();
   });
 
-  // Unwanted: tap to select
-  const strip = document.getElementById("unwantedScroll");
-  if (strip){
-    strip.querySelectorAll("[data-depth]").forEach(el=>{
-      el.onclick = () => {
-        if (!isYourTurn() || state.phase !== "draw") return;
-        state.peekIndex = Number(el.dataset.depth || "0");
-        requestRender();
-      };
-    });
+  // Select hand cards
+  document.querySelectorAll(".card[data-id]").forEach(el=>{
+    el.onclick=()=>{
+      if (!isYourTurn()) return;
+      if (state.phase==="draw") return;
+      const id = el.dataset.id;
+      if (state.selected.has(id)) state.selected.delete(id);
+      else state.selected.add(id);
+      requestRender();
+    };
+  });
 
-    // Unwanted: scroll-select nearest to center (debounced)
-    let t = null;
-    strip.addEventListener("scroll", () => {
-      if (!isYourTurn() || state.phase !== "draw") return;
-      if (t) clearTimeout(t);
-      t = setTimeout(() => {
-        const rect = strip.getBoundingClientRect();
-        const centerX = rect.left + rect.width / 2;
+  // Select meld target
+  document.querySelectorAll(".meldTap[data-pid][data-mid]").forEach(el=>{
+    el.onclick=()=>{
+      if (!isYourTurn()) return;
+      state.selectedMeld = { pid: Number(el.dataset.pid), mid: Number(el.dataset.mid) };
+      requestRender();
+    };
+  });
 
-        let bestDepth = 0;
-        let bestDist = Infinity;
-
-        strip.querySelectorAll("[data-depth]").forEach(el => {
-          const r = el.getBoundingClientRect();
-          const cx = r.left + r.width / 2;
-          const dist = Math.abs(cx - centerX);
-          if (dist < bestDist) {
-            bestDist = dist;
-            bestDepth = Number(el.dataset.depth || "0");
-          }
-        });
-
-        if (bestDepth !== state.peekIndex) {
-          state.peekIndex = bestDepth;
-          requestRender();
-        }
-      }, 80);
-    }, { passive:true });
-  }
-
-  // Buttons
   document.getElementById("clearSelBtn")?.addEventListener("click", ()=>{
     state.selected.clear();
     requestRender();
@@ -619,25 +699,6 @@ function renderGame(){
     discardOneHuman();
   });
 }
-
-// ---- draw/take helpers ----
-function drawFromDeck(playerIndex){
-  if (!state.deck.length) state.deck = shuffle(makeDeck());
-  state.players[playerIndex].hand.push(state.deck.pop());
-}
-function takeTop(playerIndex){
-  const top = state.unwanted.pop();
-  if (!top) return;
-  state.players[playerIndex].hand.push(top);
-  state.peekIndex = 0;
-}
-function takeAll(playerIndex){
-  if (!state.unwanted.length) return;
-  while(state.unwanted.length){
-    state.players[playerIndex].hand.push(state.unwanted.shift());
-  }
-  state.peekIndex = 0;
-}
 // ---- Human actions ----
 function layMeldHuman(){
   const me = state.players[0];
@@ -651,26 +712,26 @@ function layMeldHuman(){
   const rm = new Set(cards.map(c=>c.id));
   me.hand = me.hand.filter(c=>!rm.has(c.id));
 
-  // add meld
+  // store meld
   me.melds.push(cards.slice());
 
-  // unlock add-to-meld for the rest of the ROUND
+  // unlock add-to-meld for the ROUND
   me.hasLaidMeldThisRound = true;
 
   state.selected.clear();
-  // still must discard to end turn
   state.phase = "discard";
   requestRender();
 }
 
 function addToMeldHuman(){
   const me = state.players[0];
+
   if (!me.hasLaidMeldThisRound){
     alert("You must lay at least 1 meld first in this ROUND before adding to melds.");
     return;
   }
   if (!state.selectedMeld){
-    alert("Tap a meld first to select where to add.");
+    alert("Tap a meld first to choose where to add.");
     return;
   }
 
@@ -696,13 +757,12 @@ function addToMeldHuman(){
     return;
   }
 
-  // update meld + remove cards from hand
+  // update meld + remove from hand
   targetPlayer.melds[mid] = res.newMeld;
   const rm = new Set(addCards.map(c=>c.id));
   me.hand = me.hand.filter(c=>!rm.has(c.id));
 
   state.selected.clear();
-  // you can keep adding, but still must discard to end
   state.phase = "discard";
   requestRender();
 }
@@ -710,10 +770,11 @@ function addToMeldHuman(){
 function discardOneHuman(){
   const me = state.players[0];
   const chosen = me.hand.filter(c=>state.selected.has(c.id));
-  if (chosen.length!==1){
+  if (chosen.length !== 1){
     alert("Select exactly 1 card to discard.");
     return;
   }
+
   const c = chosen[0];
   me.hand = me.hand.filter(x=>x.id!==c.id);
   state.unwanted.push(c);
@@ -721,23 +782,22 @@ function discardOneHuman(){
   state.selected.clear();
   state.selectedMeld = null;
 
-  // win check
   if (me.hand.length===0){
     alert("You went out! Restarting practice hand.");
     restartHand();
     return;
   }
+
   endTurn();
 }
 
 function restartHand(){
-  // new round/hand: reset per-round flags
   const youName = state.players[0]?.name || (localStorage.getItem("crr_name")||"You");
-  startGame(youName);
+  startHand(youName);
 }
 
 function endTurn(){
-  const next = (state.turn+1)%state.players.length;
+  const next = (state.turn + 1) % state.players.length;
   beginTurn(next);
   requestRender();
   maybeBot();
@@ -761,21 +821,19 @@ function botTurn(){
   const p = currentPlayer();
   if (!p || !p.isBot) return;
 
-  // 1) Draw decision
   const s = skill();
   const top = state.unwanted[state.unwanted.length-1] || null;
 
+  // Draw phase
   if (top && Math.random()<s && topHelps(p.hand, top)){
     p.hand.push(state.unwanted.pop());
   } else {
     if (!state.deck.length) state.deck = shuffle(makeDeck());
     p.hand.push(state.deck.pop());
   }
-
-  // After drawing, bot goes to discard phase
   state.phase = "discard";
 
-  // 2) Try to lay a meld sometimes
+  // Try lay melds
   const triesLay = state.difficulty==="easy" ? 0 : (state.difficulty==="mid" ? 1 : 2);
   for (let t=0;t<triesLay;t++){
     const meld = bestMeld(p.hand);
@@ -783,27 +841,25 @@ function botTurn(){
     p.melds.push(meld);
     const rm = new Set(meld.map(c=>c.id));
     p.hand = p.hand.filter(c=>!rm.has(c.id));
-    p.hasLaidMeldThisRound = true; // unlock add for round
+    p.hasLaidMeldThisRound = true;
   }
 
-  // 3) If unlocked, sometimes add onto any existing meld
-  const triesAdd = p.hasLaidMeldThisRound ? (state.difficulty==="pro" || state.difficulty==="goat" ? 2 : 1) : 0;
+  // If unlocked, try add onto any meld
+  const triesAdd = p.hasLaidMeldThisRound ? (state.difficulty==="goat" ? 3 : state.difficulty==="pro" ? 2 : 1) : 0;
   for (let t=0;t<triesAdd;t++){
-    const addMove = bestAddMove(p);
-    if (!addMove) break;
-    const {pid, mid, cards} = addMove;
-    const tp = state.players.find(x=>x.id===pid);
-    tp.melds[mid] = canAddToMeld(tp.melds[mid], cards).newMeld;
-    const rm = new Set(cards.map(c=>c.id));
+    const move = bestAddMove(p);
+    if (!move) break;
+    const tp = state.players.find(x=>x.id===move.pid);
+    tp.melds[move.mid] = canAddToMeld(tp.melds[move.mid], move.cards).newMeld;
+    const rm = new Set(move.cards.map(c=>c.id));
     p.hand = p.hand.filter(c=>!rm.has(c.id));
   }
 
-  // 4) Discard
+  // Discard
   const disc = chooseDiscard(p.hand);
   p.hand = p.hand.filter(c=>c.id!==disc.id);
   state.unwanted.push(disc);
 
-  // win check
   if (p.hand.length===0){
     alert(`${p.name} went out! Restarting practice hand.`);
     restartHand();
@@ -821,7 +877,7 @@ function topHelps(hand, card){
 }
 
 function bestMeld(hand){
-  // sets first
+  // sets
   const byRank = {};
   for (const c of hand){
     byRank[c.r] = byRank[c.r] || [];
@@ -851,11 +907,10 @@ function bestMeld(hand){
 }
 
 function bestAddMove(bot){
-  // Find any meld on table and see if bot can add 1-2 cards
   const s = skill();
   const maxAdd = (state.difficulty==="goat" ? 3 : state.difficulty==="pro" ? 2 : 1);
 
-  // collect meld targets
+  // all meld targets
   const targets = [];
   for (const p of state.players){
     for (let mid=0; mid<p.melds.length; mid++){
@@ -864,15 +919,14 @@ function bestAddMove(bot){
   }
   if (!targets.length) return null;
 
-  // try random-ish targets for imperfection
-  for (let attempt=0; attempt<8; attempt++){
+  // try a few targets
+  for (let attempt=0; attempt<10; attempt++){
     const tgt = targets[Math.floor(Math.random()*targets.length)];
     const tp = state.players.find(x=>x.id===tgt.pid);
     const meld = tp.melds[tgt.mid];
 
-    // choose up to maxAdd cards from bot hand that might fit
+    // shuffled hand
     const hand = bot.hand.slice();
-    // shuffle for variety
     for (let i=hand.length-1;i>0;i--){
       const j=Math.floor(Math.random()*(i+1));
       [hand[i],hand[j]]=[hand[j],hand[i]];
@@ -884,14 +938,10 @@ function bestAddMove(bot){
       const res = canAddToMeld(meld, chosen.concat([c]));
       if (res.ok){
         chosen.push(c);
-        // on lower skills, stop early
         if (Math.random() > s) break;
       }
     }
-
-    if (chosen.length){
-      return {pid:tgt.pid, mid:tgt.mid, cards:chosen};
-    }
+    if (chosen.length) return {pid:tgt.pid, mid:tgt.mid, cards:chosen};
   }
 
   return null;
@@ -920,11 +970,11 @@ function chooseDiscard(hand){
   return worst;
 }
 
-// ---- Timer (no constant full re-render) ----
+// ---- Timer + timeout auto-move ----
 setInterval(()=>{
   if (state.screen!=="game") return;
 
-  const sec = Math.ceil(Math.max(0, state.turnEndsAt-Date.now())/1000);
+  const sec = Math.ceil(Math.max(0, state.turnEndsAt - Date.now())/1000);
   const timer = document.getElementById("timerText");
   if (timer){
     timer.textContent = `${sec}s`;
@@ -939,13 +989,13 @@ setInterval(()=>{
     const p = currentPlayer();
     if (!p) return;
 
-    // timeout: if in draw phase, draw from deck
+    // If they haven't drawn, auto draw from deck
     if (state.phase==="draw"){
       if (!state.deck.length) state.deck = shuffle(makeDeck());
       p.hand.push(state.deck.pop());
     }
 
-    // then discard random
+    // Then discard random
     if (p.hand.length){
       const c = p.hand[Math.floor(Math.random()*p.hand.length)];
       p.hand = p.hand.filter(x=>x.id!==c.id);
