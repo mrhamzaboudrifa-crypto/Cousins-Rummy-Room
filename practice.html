@@ -2,11 +2,17 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
   <meta name="theme-color" content="#070712" />
   <title>Practice — Cousins Rummy Room</title>
   <link rel="stylesheet" href="style.css" />
   <style>
+    /* Mobile-fit container */
+    #app{width:100%;display:flex;justify-content:center;}
+    .safe{width:100%;min-height:100vh;display:flex;justify-content:center;align-items:flex-start;padding:16px;}
+    .shell{width:100%;max-width:520px;margin:0 auto;}
+
+    /* Practice UI */
     .grid{display:flex;flex-direction:column;gap:12px;}
     .pills{display:flex;gap:10px;flex-wrap:wrap;}
     .pill{padding:10px 12px;border-radius:14px;border:1px solid rgba(255,255,255,.14);
@@ -16,24 +22,58 @@
     .seatRow{display:flex;justify-content:space-between;gap:10px;flex-wrap:wrap;}
     .seatBox{flex:1;min-width:140px;background:rgba(0,0,0,.18);border:1px solid rgba(255,255,255,.14);
       border-radius:16px;padding:10px;}
-    .cardsLine{display:flex;gap:6px;flex-wrap:wrap;margin-top:6px;}
-    .mini{padding:6px 8px;border-radius:12px;border:1px solid rgba(255,255,255,.14);
-      background:rgba(255,255,255,.06);font-weight:900;}
     .centerRow{display:flex;gap:10px;justify-content:space-between;}
     .pileBox{flex:1;background:rgba(0,0,0,.18);border:1px solid rgba(255,255,255,.14);
       border-radius:16px;padding:10px;text-align:center;}
-    .hand{display:flex;gap:8px;overflow:auto;padding-bottom:6px;}
-    .card{width:66px;height:94px;border-radius:18px;border:1px solid rgba(255,255,255,.18);
-      background:linear-gradient(180deg, rgba(255,255,255,.18), rgba(255,255,255,.04));
-      box-shadow:0 10px 30px rgba(0,0,0,.35),0 0 16px rgba(111,214,255,.10);
-      display:flex;flex-direction:column;justify-content:space-between;padding:10px;
-      user-select:none;cursor:pointer;}
-    .card.sel{outline:3px solid rgba(111,214,255,.65);transform:translateY(-2px);}
+    .hand{display:flex;gap:10px;overflow:auto;padding:6px 2px 10px;}
+
+    /* Proper playing-card look */
+    .card{
+      width:72px;height:102px;border-radius:16px;
+      border:1px solid rgba(0,0,0,.10);
+      background:rgba(255,255,255,.94);
+      box-shadow:0 12px 34px rgba(0,0,0,.35), 0 0 18px rgba(111,214,255,.08);
+      color:#101018; position:relative; overflow:hidden;
+      user-select:none; cursor:pointer; flex:0 0 auto;
+    }
+    .card::before{
+      content:"";
+      position:absolute; inset:-30% -30%;
+      background: radial-gradient(circle at 30% 20%, rgba(111,214,255,.18), transparent 55%),
+                  linear-gradient(120deg, rgba(255,255,255,.35), transparent 45%);
+      transform: rotate(18deg);
+      pointer-events:none;
+    }
+    .card.red{color:#c0172c;}
+    .card.black{color:#101018;}
+    .card.sel{
+      outline:3px solid rgba(111,214,255,.65);
+      transform: translateY(-2px);
+    }
+    .corner{
+      position:absolute; font-weight:900; font-size:14px; line-height:1.0;
+      display:flex; flex-direction:column; gap:3px;
+      text-shadow:0 1px 0 rgba(255,255,255,.35);
+    }
+    .tl{top:8px;left:8px;}
+    .br{bottom:8px;right:8px;transform:rotate(180deg);}
+    .pip{
+      position:absolute; inset:0;
+      display:flex; align-items:center; justify-content:center;
+      font-size:28px; font-weight:900;
+      opacity:.88;
+    }
+
     .btnRow{display:flex;gap:10px;}
     .btnRow .btn{flex:1;}
     .timerBox{font-weight:900;text-align:right;}
     .danger{color:#ffd6dd;text-shadow:0 0 14px rgba(255,78,106,.25);}
     .note{font-size:12px;color:rgba(242,243,255,.72);}
+
+    /* keep tiny screens usable */
+    @media (max-width:360px){
+      .card{width:66px;height:94px;}
+    }
   </style>
 </head>
 <body>
