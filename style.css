@@ -1,80 +1,94 @@
-/* ===== Cousins Rummy Room — CLEAN Mobile One-Screen UI ===== */
+/* =========================
+   Cousins Rummy Room — Shared UI (Lobby + Practice)
+   Fixes:
+   - Lobby can scroll (default)
+   - Practice locks page scroll and uses one-screen layout
+   - No left shift / overflow on mobile
+   ========================= */
 
 :root{
-  --panel: rgba(10,14,22,.55);
+  --panel: rgba(10,14,22,.62);
+  --panel2: rgba(0,0,0,.22);
   --stroke: rgba(160,210,255,.22);
+  --stroke2: rgba(160,210,255,.14);
   --text: rgba(240,248,255,.92);
   --muted: rgba(240,248,255,.62);
   --danger: #ff5b5b;
+  --accent: rgba(120,210,255,.85);
 
-  /* Responsive card size (single source of truth) */
-  --card-w: clamp(44px, 12vw, 72px);
+  /* Responsive card size (kept readable on phones) */
+  --card-w: clamp(44px, 12vw, 70px);
   --card-h: calc(var(--card-w) * 1.35);
-  --gap: 10px;
 }
 
 *{ box-sizing:border-box; -webkit-tap-highlight-color: transparent; }
 html, body{
-  width:100%;
-  height:100%;
   margin:0;
   padding:0;
-  background:#000;
+  width:100%;
+  height:100%;
   color:var(--text);
   font-family: ui-sans-serif, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Arial;
-  overflow:hidden;              /* no page scrolling */
-  overscroll-behavior:none;
+  background:#000;
+  overflow-x:hidden;        /* prevent sideways drift */
 }
 
-/* Optional background layer used in index.html */
+/* ✅ Lobby can scroll normally (default) */
+body{
+  overflow-y:auto;
+  overscroll-behavior: none;
+}
+
+/* ✅ Only PRACTICE locks page scroll */
+body.practice{
+  overflow:hidden;
+}
+
+/* Background layer (used by lobby index.html) */
 .bg{
   position:fixed;
   inset:0;
-  pointer-events:none;
+  z-index:-1;
   background:
-    radial-gradient(1200px 800px at 20% 10%, rgba(255,140,80,.22), transparent 60%),
+    radial-gradient(1200px 800px at 20% 10%, rgba(255,140,80,.20), transparent 60%),
     radial-gradient(900px 700px at 70% 40%, rgba(80,180,255,.18), transparent 60%),
     radial-gradient(1200px 900px at 40% 90%, rgba(40,255,180,.08), transparent 60%),
     linear-gradient(180deg, rgba(6,8,14,.86), rgba(6,8,14,.92));
 }
 
-/* iPhone safe areas */
+/* ✅ Safe wrapper for iPhone notch pages (practice uses it) */
 .safe{
-  height:100dvh;
+  min-height:100dvh;
   width:100vw;
-  overflow:hidden;
+  padding:
+    env(safe-area-inset-top)
+    env(safe-area-inset-right)
+    env(safe-area-inset-bottom)
+    env(safe-area-inset-left);
   display:flex;
   justify-content:center;
   align-items:stretch;
-  padding: env(safe-area-inset-top) env(safe-area-inset-right)
-           env(safe-area-inset-bottom) env(safe-area-inset-left);
 }
 
+/* Container */
 .shell{
   width:min(980px, 100vw);
-  height:100%;
+  max-width:100%;
+  margin:0 auto;
   padding:12px;
-  overflow:hidden;
   display:flex;
   flex-direction:column;
   gap:12px;
-  margin:0 auto;
 }
 
-/* header */
-.hdr{
-  display:flex;
-  justify-content:space-between;
-  align-items:flex-start;
-  gap:12px;
-}
-.brand .title{
+/* ---------- Branding (Lobby + Practice) ---------- */
+.title{
   font-size:28px;
   font-weight:900;
   letter-spacing:.5px;
   text-shadow: 0 0 22px rgba(255,155,105,.35);
 }
-.brand .subtitle{
+.subtitle{
   font-size:34px;
   font-weight:900;
   color:rgba(160,220,255,.95);
@@ -89,6 +103,84 @@ html, body{
   box-shadow: 0 0 20px rgba(110,220,255,.45);
   margin-top:8px;
 }
+
+/* Panels */
+.panel{
+  background: var(--panel);
+  border:1px solid var(--stroke);
+  border-radius:18px;
+  box-shadow: 0 0 26px rgba(0,0,0,.35);
+  overflow:hidden;
+  padding:12px;
+}
+.row{ display:flex; justify-content:space-between; align-items:center; gap:12px; }
+.small{ font-size:12px; color:var(--muted); }
+
+/* Inputs / Buttons (Lobby) */
+.input{
+  width:100%;
+  padding:12px 12px;
+  border-radius:14px;
+  border:1px solid rgba(255,255,255,.14);
+  background: rgba(0,0,0,.28);
+  color:var(--text);
+  outline:none;
+  font-size:16px; /* stops iOS zoom */
+}
+.btn{
+  width:100%;
+  padding:12px 12px;
+  border-radius:14px;
+  border:1px solid rgba(255,255,255,.14);
+  background: rgba(0,0,0,.25);
+  color:var(--text);
+  font-weight:800;
+  user-select:none;
+}
+.btn.cyan{
+  border:1px solid rgba(120,210,255,.40);
+  box-shadow: 0 0 18px rgba(120,210,255,.16);
+}
+.btn:disabled{ opacity:.45; }
+
+/* Lists / Chat (Lobby) */
+.list{ margin-top:10px; display:flex; flex-direction:column; gap:8px; }
+.item{
+  padding:10px;
+  border-radius:14px;
+  background: rgba(0,0,0,.22);
+  border:1px solid rgba(160,210,255,.12);
+}
+.chat{
+  max-height:240px;
+  overflow:auto;
+  -webkit-overflow-scrolling: touch;
+  padding-right:4px;
+}
+
+/* =========================================
+   PRACTICE GAME LAYOUT (ONE SCREEN)
+   ========================================= */
+
+/* Optional bar background image (if you add it) */
+body.practice .bg{
+  background:
+    linear-gradient(180deg, rgba(0,0,0,.45), rgba(0,0,0,.65)),
+    url("./bar.jpg") center/cover no-repeat,
+    radial-gradient(1200px 800px at 20% 10%, rgba(255,140,80,.20), transparent 60%),
+    radial-gradient(900px 700px at 70% 40%, rgba(80,180,255,.18), transparent 60%),
+    linear-gradient(180deg, rgba(6,8,14,.86), rgba(6,8,14,.92));
+}
+
+/* Practice header (compact) */
+.hdr{
+  display:flex;
+  justify-content:space-between;
+  align-items:flex-start;
+  gap:12px;
+}
+.brand .title{ font-size:22px; }
+.brand .subtitle{ font-size:28px; }
 .exitMini{
   padding:8px 12px;
   border-radius:12px;
@@ -98,18 +190,7 @@ html, body{
   user-select:none;
 }
 
-/* reusable panel */
-.panel{
-  background: var(--panel);
-  border:1px solid var(--stroke);
-  border-radius:18px;
-  box-shadow: 0 0 26px rgba(0,0,0,.35);
-  overflow:hidden;
-}
-
-.small{ font-size:12px; color:var(--muted); }
-
-/* turn banner */
+/* Turn banner */
 .turnBanner{
   display:flex;
   justify-content:space-between;
@@ -123,61 +204,61 @@ html, body{
 .turnBanner .muted{ color:var(--muted); font-size:12px; }
 .danger{ color:var(--danger); font-weight:900; }
 
-/* game area (fixed one-screen) */
-.gameArea{
-  flex:1;
-  min-height:0;
-  padding:12px;
+/* ✅ One screen layout: middle scrolls, bottom hand stays visible */
+.gameLayout{
+  height:100dvh;
   display:flex;
   flex-direction:column;
-  gap:12px;
   overflow:hidden;
 }
+.gameMain{
+  flex:1;
+  min-height:0;
+  overflow:auto;
+  -webkit-overflow-scrolling: touch;
+  padding-bottom:10px;
+}
 
-/* opponents row */
+/* Opponents row */
 .seatRow{
   display:flex;
   gap:10px;
   overflow-x:auto;
   -webkit-overflow-scrolling: touch;
   padding-bottom:4px;
-  scrollbar-width:none;
 }
-.seatRow::-webkit-scrollbar{ display:none; }
-
 .seatBox{
   min-width:180px;
   border-radius:16px;
   padding:10px;
-  background: rgba(0,0,0,.22);
+  background: var(--panel2);
   border:1px solid rgba(160,210,255,.16);
 }
+.seatBox b{ font-size:14px; }
 .activeTurn{
   box-shadow: 0 0 0 2px rgba(120,210,255,.45), 0 0 28px rgba(120,210,255,.16);
 }
 
-/* deck + unwanted area */
+/* Deck + unwanted */
 .centerRow{
   display:grid;
   grid-template-columns: 1fr 1fr;
   gap:12px;
-  min-height:0;
 }
 .pileBox{
   border-radius:16px;
   padding:10px;
-  background: rgba(0,0,0,.22);
+  background: var(--panel2);
   border:1px solid rgba(160,210,255,.16);
-  overflow:hidden; /* keeps unwanted strip inside */
+  overflow:hidden;
 }
 
-/* deck stack (real-ish back) */
+/* Deck stack with back design */
 .deckStack{
   position:relative;
   width: calc(var(--card-w) + 18px);
   height: calc(var(--card-h) + 18px);
   margin:10px auto 6px;
-  user-select:none;
 }
 .back{
   position:absolute;
@@ -199,27 +280,29 @@ html, body{
   letter-spacing:1px;
   opacity:.85;
 }
-
-/* unwanted */
 .hint{ font-size:11px; color:var(--muted); text-align:center; margin-top:6px; }
+
+/* Unwanted peek strip */
 .peekWrap{ margin-top:10px; overflow:hidden; }
 .peekStrip{
   display:flex;
   gap:8px;
-  flex-wrap:nowrap;
   overflow-x:auto;
   overflow-y:hidden;
   -webkit-overflow-scrolling: touch;
-  padding:6px 2px 8px;
   touch-action: pan-x;
+  padding:6px 2px 8px;
   scrollbar-width:none;
 }
 .peekStrip::-webkit-scrollbar{ display:none; }
+.peekCard{ flex:0 0 auto; opacity:.85; transform: scale(.94); }
+.peekCard.active{
+  opacity:1;
+  transform: scale(1);
+  filter: drop-shadow(0 0 10px rgba(120,210,255,.20));
+}
 
-.peekCard{ flex:0 0 auto; opacity:.85; transform:scale(.94); }
-.peekCard.active{ opacity:1; transform:scale(1); filter:drop-shadow(0 0 10px rgba(120,210,255,.20)); }
-
-/* cards */
+/* Cards */
 .card{
   width: var(--card-w);
   height: var(--card-h);
@@ -249,8 +332,7 @@ html, body{
   line-height:1.05;
 }
 .corner.tl{ top:6px; left:6px; }
-.corner.br{ bottom:6px; right:6px; transform:rotate(180deg); }
-
+.corner.br{ bottom:6px; right:6px; transform: rotate(180deg); }
 .pip{
   position:absolute;
   left:50%;
@@ -260,57 +342,34 @@ html, body{
   opacity:.95;
 }
 
-/* selected / highlight */
+/* Selected / new draw highlight */
 .card.sel{
   outline:2px solid rgba(120,210,255,.9);
   box-shadow: 0 0 0 2px rgba(120,210,255,.35), 0 12px 26px rgba(0,0,0,.30);
   transform: translateY(-4px);
 }
 
-/* buttons */
+/* Buttons row */
 .btnRow{ display:flex; gap:10px; }
-.btn{
-  width:100%;
-  padding:10px 12px;
-  border-radius:14px;
-  border:1px solid rgba(255,255,255,.14);
-  background: rgba(0,0,0,.25);
-  color:var(--text);
-  font-weight:800;
-  font-size:16px; /* prevents iOS zoom on focus */
-}
-.btn.cyan{
-  border:1px solid rgba(120,210,255,.40);
-  box-shadow: 0 0 18px rgba(120,210,255,.16);
-}
-.btn:disabled{ opacity:.45; }
 
-/* meld tray */
+/* Meld tray */
 .meldTray{
   border-radius:16px;
   padding:10px;
-  background: rgba(0,0,0,.22);
+  background: var(--panel2);
   border:1px solid rgba(160,210,255,.16);
 }
-.meldTrayHead{
-  display:flex;
-  justify-content:space-between;
-  align-items:center;
-}
+.meldTrayHead{ display:flex; justify-content:space-between; align-items:center; }
 .meldTrayBody{
   margin-top:8px;
   display:flex;
   gap:10px;
   overflow-x:auto;
-  overflow-y:hidden;
-  flex-wrap:nowrap;
   -webkit-overflow-scrolling: touch;
   padding-bottom:6px;
-  touch-action: pan-x;
   scrollbar-width:none;
 }
 .meldTrayBody::-webkit-scrollbar{ display:none; }
-
 .meldBlock{
   flex:0 0 auto;
   border-radius:14px;
@@ -318,39 +377,38 @@ html, body{
   background: rgba(255,255,255,.06);
   border:1px solid rgba(160,210,255,.12);
 }
-.meldTap.active{
-  box-shadow: 0 0 0 2px rgba(120,210,255,.45);
-}
 
-/* bottom hand bar */
+/* ✅ Hand bar sticks to bottom (so no “scroll for ages”) */
 .handBar{
+  position:sticky;
+  bottom:0;
+  z-index:5;
   border-radius:18px;
   padding:10px;
-  background: rgba(0,0,0,.28);
+  background: rgba(0,0,0,.34);
   border:1px solid rgba(160,210,255,.18);
-  overflow:hidden;
+  backdrop-filter: blur(10px);
 }
-.handHead{
-  display:flex;
-  justify-content:space-between;
-  align-items:flex-end;
-}
+.handHead{ display:flex; justify-content:space-between; align-items:flex-end; }
 #hand{
   display:flex;
   gap:10px;
-  flex-wrap:nowrap;
   overflow-x:auto;
   overflow-y:hidden;
   -webkit-overflow-scrolling: touch;
-  padding:10px 2px 6px;
   touch-action: pan-x;
+  padding:10px 2px 6px;
+  scroll-snap-type:x mandatory;
   scrollbar-width:none;
 }
 #hand::-webkit-scrollbar{ display:none; }
+#hand .card{ scroll-snap-align:start; }
 
-/* small screens */
+/* Small phones */
 @media (max-width: 420px){
-  .brand .subtitle{ font-size:30px; }
+  .brand .subtitle{ font-size:24px; }
+  .brand .title{ font-size:18px; }
+  .underline{ width:160px; }
   .seatBox{ min-width:160px; }
   .centerRow{ grid-template-columns: 1fr; }
 }
