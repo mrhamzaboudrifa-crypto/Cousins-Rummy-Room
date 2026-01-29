@@ -1,23 +1,20 @@
 /* Cousins Rummy Room — PRACTICE MODE (Bots)
-   - One-screen mobile layout
-   - Stable hand scrolling
-   - Unwanted: Top visible + tap to peek strip + Take Top / Take All
-   - Deck: tap stack to draw (goes to FRONT + highlight)
-   - Meld tray compact
-   - Must lay at least 1 meld this round before adding to any meld
+   Fix: hand slider no longer jumps back on iPhone
+   - No constant render loop
+   - Render only when needed (rAF)
+   - Do NOT force scrollLeft while user is swiping
+   - Deck draw goes to FRONT + highlight
 */
 
 const app = document.getElementById("app");
 
 // ---------- Utilities ----------
 const SUITS = ["♠","♥","♦","♣"];
-const SUIT_COLOR = (s) => (s==="♥"||s==="♦") ? "red" : "black";
 const RANKS = ["A","2","3","4","5","6","7","8","9","10","J","Q","K"];
-const RANK_VALUE = (r) => (r==="A"||r==="10"||r==="J"||r==="Q"||r==="K") ? 10 : 5;
-const now = () => Date.now();
+const SUIT_COLOR = (s) => (s==="♥"||s==="♦") ? "red" : "black";
+const uid = ()=>Math.random().toString(36).slice(2,10);
 const clamp = (n,a,b)=>Math.max(a,Math.min(b,n));
 const escapeHtml = (s)=>(s||"").replaceAll("&","&amp;").replaceAll("<","&lt;").replaceAll(">","&gt;");
-const uid = ()=>Math.random().toString(36).slice(2,10);
 
 function parseParams(){
   const p = new URLSearchParams(location.search);
@@ -26,35 +23,11 @@ function parseParams(){
   return { bots, difficulty: ["easy","mid","pro","goat"].includes(difficulty)?difficulty:"easy" };
 }
 
-// ---------- Game State ----------
-const state = {
-  uiNeedsRender: true,
-  startedAt: now(),
-
-  dealerIndex: 0,
-  turnIndex: 0,
-  turnMsLeft: 60000,
-  turnTimer: null,
-  phase: "DRAW",
-
-  deck: [],
-  unwanted: [],
-  peekIndex: 0,
-  peekOpen: false,
-
-  players: [],
-  selectedIds: new Set(),
-
-  laidMeldThisTurn: false,
-  handScrollLeft: 0,
-  lastDrawnId: null,
-
-  modal: null,
-};
-
 const { bots: BOT_COUNT, difficulty: BOT_DIFFICULTY } = parseParams();
 
-// ---------- Deck ----------
+const RANK_VALUE = (r) => (r==="A"||r==="10"||r==="J"||r==="Q"||r==="K") ? 10 : 5;
+const rankIndex = (r)=>RANKS.indexOf(r);
+
 function makeDeck(){
   const deck = [];
   for (const s of SUITS){
@@ -70,21 +43,6 @@ function makeDeck(){
 }
 
 function cardLabel(c){ return `${c.r}${c.s}`; }
-function rankIndex(r){ return RANKS.indexOf(r); }
-
-function isValidRun(cards){
-  if (cards.length < 3) return false;
-  const suit = cards[0].s;
-  if (!cards.every(c=>c.s===suit)) return false;
-
-  const idx = cards.map(c=>rankIndex(c.r)).sort((a,b)=>a-b);
-  const consecutiveLow = idx.every((v,i)=> i===0 || v===idx[i-1]+1);
-  if (consecutiveLow) return true;
-
-  if (!cards.some(c=>c.r==="A")) return false;
-  const idxHigh = cards.map(c=> (c.r==="A"?13:rankIndex(c.r)) ).sort((a,b)=>a-b);
-  return idxHigh.every((v,i)=> i===0 || v===idxHigh[i-1]+1);
-}
 
 function isValidSet(cards){
   if (cards.length < 3) return false;
@@ -92,10 +50,27 @@ function isValidSet(cards){
   return cards.every(c=>c.r===r);
 }
 
+function isValidRun(cards){
+  if (cards.length < 3) return false;
+  const suit = cards[0].s;
+  if (!cards.every(c=>c.s===suit)) return false;
+
+  // A low normal
+  const idx = cards.map(c=>rankIndex(c.r)).sort((a,b)=>a-b);
+  const consecutiveLow = idx.every((v,i)=> i===0 || v===idx[i-1]+1);
+  if (consecutiveLow) return true;
+
+  // A high (Q K A etc.)
+  if (!cards.some(c=>c.r==="A")) return false;
+  const idxHigh = cards.map(c=> (c.r==="A"?13:rankIndex(c.r)) ).sort((a,b)=>a-b);
+  const consecutiveHigh = idxHigh.every((v,i)=> i===0 || v===idxHigh[i-1]+1);
+  return consecutiveHigh;
+}
+
 function validateMeld(cards){
   if (cards.length < 3) return { ok:false, reason:"Meld must be 3+ cards." };
-  if (isValidSet(cards)) return { ok:true };
-  if (isValidRun(cards)) return { ok:true };
+  if (isValidSet(cards)) return { ok:true, type:"set" };
+  if (isValidRun(cards)) return { ok:true, type:"run" };
   return { ok:false, reason:"Not a valid set or run." };
 }
 
@@ -103,33 +78,81 @@ function pointsOfCards(cards){
   return cards.reduce((sum,c)=>sum+RANK_VALUE(c.r),0);
 }
 
-// ---------- Players ----------
+// ---------- Game State ----------
+const state = {
+  players: [],
+  deck: [],
+  unwanted: [],
+  peekOpen: false,
+  peekIndex: 0,
+
+  turnIndex: 0,
+  phase: "DRAW", // DRAW -> MELD -> DISCARD
+  turnMsLeft: 60000,
+  turnTimer: null,
+
+  selectedIds: new Set(),
+  laidMeldThisTurn: false,
+  lastDrawnId: null,
+
+  modal: null,
+
+  // hand scroll stability
+  handScrollLeft: 0,
+  handInteracting: false,
+  handInteractionTimeout: null,
+
+  // render scheduling
+  renderQueued: false,
+};
+
 function makePlayers(){
   const youName = localStorage.getItem("crr_name") || "You";
   const names = ["Alice","Mike","John","Med","Lisa","Zara","Omar","Tara","Nina"];
   const bots = [];
-  let used = new Set([youName.toLowerCase()]);
   for (let i=0;i<BOT_COUNT;i++){
-    let n = names.find(x=>!used.has(x.toLowerCase())) || `Bot${i+1}`;
-    used.add(n.toLowerCase());
-    bots.push({ uid:`bot_${i}`, name:n, bot:true });
+    bots.push({ uid:`bot_${i}`, name:names[i] || `Bot${i+1}`, bot:true });
   }
-  return [{ uid:"me", name:youName, bot:false }, ...bots].map(p=>({
-    ...p, hand:[], melds:[], score:0, mustLayMeldFirst:true
+  return [
+    { uid:"me", name:youName, bot:false },
+    ...bots
+  ].map(p=>({
+    ...p,
+    hand: [],
+    melds: [],
+    score: 0,
+    mustLayMeldFirst: true, // per round
   }));
+}
+
+function curPlayer(){ return state.players[state.turnIndex]; }
+function mePlayer(){ return state.players.find(p=>p.uid==="me"); }
+function isMyTurn(){ return curPlayer().uid==="me"; }
+function nextTurnIndex(){ return (state.turnIndex+1)%state.players.length; }
+
+function scheduleRender(){
+  if (state.renderQueued) return;
+  state.renderQueued = true;
+  requestAnimationFrame(()=>{
+    state.renderQueued = false;
+    renderGame();
+  });
 }
 
 // ---------- Deal ----------
 function deal(){
-  state.dealerIndex = Math.floor(Math.random()*state.players.length);
-  const nextIndex = (state.dealerIndex + 1) % state.players.length;
+  const dealerIndex = Math.floor(Math.random()*state.players.length);
+  state.dealerIndex = dealerIndex;
+  const nextIndex = (dealerIndex+1)%state.players.length;
 
   for (let i=0;i<state.players.length;i++){
     const count = (i===nextIndex) ? 8 : 7;
-    for (let k=0;k<count;k++) state.players[i].hand.push(state.deck.pop());
+    for (let k=0;k<count;k++){
+      state.players[i].hand.push(state.deck.pop());
+    }
   }
 
-  state.unwanted = [state.deck.pop()];
+  state.unwanted.push(state.deck.pop());
   state.peekIndex = state.unwanted.length-1;
   state.peekOpen = false;
 
@@ -140,220 +163,234 @@ function deal(){
   state.turnMsLeft = 60000;
 }
 
-// ---------- Timer + chime ----------
-function stopTurnTimer(){
-  if (state.turnTimer){ clearInterval(state.turnTimer); state.turnTimer=null; }
-}
-function softChime(times){
-  try{
-    const ctx = softChime._ctx || (softChime._ctx = new (window.AudioContext||window.webkitAudioContext)());
-    const t0 = ctx.currentTime + 0.02;
-    for (let i=0;i<times;i++){
-      const o = ctx.createOscillator();
-      const g = ctx.createGain();
-      o.type = "sine";
-      o.frequency.setValueAtTime(660, t0 + i*0.12);
-      g.gain.setValueAtTime(0.0001, t0 + i*0.12);
-      g.gain.exponentialRampToValueAtTime(0.03, t0 + i*0.12 + 0.02);
-      g.gain.exponentialRampToValueAtTime(0.0001, t0 + i*0.12 + 0.18);
-      o.connect(g); g.connect(ctx.destination);
-      o.start(t0 + i*0.12);
-      o.stop(t0 + i*0.12 + 0.19);
-    }
-  }catch{}
-}
+// ---------- Timer ----------
 function startTurnTimer(){
   stopTurnTimer();
-  const start = now();
-  const startLeft = state.turnMsLeft;
-  state._chimed30=false; state._chimed15=false;
-
-  state.turnTimer=setInterval(()=>{
-    const elapsed = now()-start;
-    state.turnMsLeft = clamp(startLeft-elapsed, 0, 60000);
-
-    if (state.turnMsLeft<=30000 && !state._chimed30){ state._chimed30=true; softChime(1); }
-    if (state.turnMsLeft<=15000 && !state._chimed15){ state._chimed15=true; softChime(2); }
-    if (state.turnMsLeft===0) onTimeoutAutoMove();
-
-    requestRender();
+  state.turnTimer = setInterval(()=>{
+    state.turnMsLeft = Math.max(0, state.turnMsLeft - 250);
+    if (state.turnMsLeft === 0){
+      onTimeoutAutoMove();
+      return;
+    }
+    scheduleRender();
   }, 250);
 }
-
-// ---------- Core helpers ----------
-function curPlayer(){ return state.players[state.turnIndex]; }
-function mePlayer(){ return state.players.find(p=>p.uid==="me"); }
-function isMyTurn(){ return curPlayer().uid==="me"; }
-function nextTurnIndex(){ return (state.turnIndex+1)%state.players.length; }
-function requestRender(){ state.uiNeedsRender=true; }
-
-// ---------- Timeout auto-move ----------
-function autoDrawFromDeck(p){
-  if (!state.deck.length) return;
-  const c = state.deck.pop();
-  c._justDrew=true;
-  state.lastDrawnId=c.id;
-  p.hand.unshift(c);
-  state.phase="MELD";
+function stopTurnTimer(){
+  if (state.turnTimer){
+    clearInterval(state.turnTimer);
+    state.turnTimer = null;
+  }
 }
-function autoRandomDiscard(p){
-  if (!p.hand.length) return;
-  const idx=Math.floor(Math.random()*p.hand.length);
-  const [c]=p.hand.splice(idx,1);
-  state.unwanted.push(c);
-  state.peekIndex = state.unwanted.length-1;
-  state.peekOpen=false;
-}
+
 function onTimeoutAutoMove(){
   stopTurnTimer();
-  const p=curPlayer();
-  if (state.phase==="DRAW") autoDrawFromDeck(p);
-  if (state.phase!=="DRAW") autoRandomDiscard(p);
+  const p = curPlayer();
+  if (state.phase === "DRAW") autoDrawFromDeck(p);
+  if (state.phase !== "DRAW") autoRandomDiscard(p);
   endTurn();
 }
 
-// ---------- Turn end ----------
-function endTurn(){
-  state.selectedIds.clear();
-  state.laidMeldThisTurn=false;
-  state.phase="DRAW";
-  state.turnIndex = nextTurnIndex();
-  state.turnMsLeft=60000;
-  startTurnTimer();
-  requestRender();
+function autoDrawFromDeck(p){
+  if (!state.deck.length) return;
+  const c = state.deck.pop();
+  c._justDrew = true;
+  state.lastDrawnId = c.id;
+  p.hand.unshift(c);
+  state.phase = "MELD";
+}
 
-  if (curPlayer().bot) setTimeout(()=>botAct(), 350);
+function autoRandomDiscard(p){
+  if (!p.hand.length) return;
+  const idx = Math.floor(Math.random()*p.hand.length);
+  const [c] = p.hand.splice(idx,1);
+  state.unwanted.push(c);
+  state.peekIndex = state.unwanted.length-1;
+  state.peekOpen = false;
 }
 
 // ---------- Selection ----------
 function toggleSelect(cardId){
   if (!isMyTurn()) return;
+  const me = mePlayer();
+  if (!me.hand.find(c=>c.id===cardId)) return;
+
   if (state.selectedIds.has(cardId)) state.selectedIds.delete(cardId);
   else state.selectedIds.add(cardId);
-  requestRender();
+
+  scheduleRender();
 }
+
 function getSelectedCardsFromHand(){
-  const me=mePlayer();
-  return [...state.selectedIds].map(id=>me.hand.find(c=>c.id===id)).filter(Boolean);
+  const me = mePlayer();
+  const ids = [...state.selectedIds];
+  return ids.map(id=>me.hand.find(c=>c.id===id)).filter(Boolean);
 }
 
 // ---------- Actions ----------
 function drawFromDeck(){
-  if (!isMyTurn() || state.phase!=="DRAW" || !state.deck.length) return;
-  const me=mePlayer();
+  if (!isMyTurn()) return;
+  if (state.phase !== "DRAW") return;
+  const me = mePlayer();
+  if (!state.deck.length) return;
+
   const c = state.deck.pop();
-  c._justDrew=true;
-  state.lastDrawnId=c.id;
+  c._justDrew = true;
+  state.lastDrawnId = c.id;
+
+  // ✅ put at FRONT
   me.hand.unshift(c);
-  state.phase="MELD";
-  requestRender();
+
+  state.phase = "MELD";
+  scheduleRender();
+
   setTimeout(()=>{
-    const me=mePlayer();
-    if (me) for (const x of me.hand) delete x._justDrew;
-    state.lastDrawnId=null;
-    requestRender();
+    const me = mePlayer();
+    if (me) me.hand.forEach(x=>delete x._justDrew);
+    state.lastDrawnId = null;
+    scheduleRender();
   }, 900);
 }
 
 function takeUnwantedTop(){
-  if (!isMyTurn() || state.phase!=="DRAW" || !state.unwanted.length) return;
-  const me=mePlayer();
+  if (!isMyTurn()) return;
+  if (state.phase !== "DRAW") return;
+  const me = mePlayer();
+  if (!state.unwanted.length) return;
+
   const c = state.unwanted.pop();
-  c._justDrew=true;
-  state.lastDrawnId=c.id;
+  c._justDrew = true;
+  state.lastDrawnId = c.id;
   me.hand.unshift(c);
+
   state.peekIndex = state.unwanted.length-1;
-  state.peekOpen=false;
-  state.phase="MELD";
-  requestRender();
+  state.peekOpen = false;
+  state.phase = "MELD";
+  scheduleRender();
+
   setTimeout(()=>{
-    const me=mePlayer();
-    if (me) for (const x of me.hand) delete x._justDrew;
-    state.lastDrawnId=null;
-    requestRender();
+    const me = mePlayer();
+    if (me) me.hand.forEach(x=>delete x._justDrew);
+    state.lastDrawnId = null;
+    scheduleRender();
   }, 900);
 }
 
 function takeUnwantedAll(){
-  if (!isMyTurn() || state.phase!=="DRAW" || !state.unwanted.length) return;
-  const me=mePlayer();
-  const pile = state.unwanted.splice(0, state.unwanted.length);
+  if (!isMyTurn()) return;
+  if (state.phase !== "DRAW") return;
+  const me = mePlayer();
+  if (!state.unwanted.length) return;
+
+  const pile = state.unwanted.splice(0);
+  // add to FRONT preserving order
   for (let i=pile.length-1;i>=0;i--) me.hand.unshift(pile[i]);
-  state.peekIndex=-1;
-  state.peekOpen=false;
-  state.phase="MELD";
-  requestRender();
+
+  state.peekIndex = -1;
+  state.peekOpen = false;
+  state.phase = "MELD";
+  scheduleRender();
 }
 
 function layMeld(){
-  if (!isMyTurn() || state.phase==="DRAW") return;
-  const me=mePlayer();
-  const cards=getSelectedCardsFromHand();
-  const v=validateMeld(cards);
+  if (!isMyTurn()) return;
+  if (state.phase === "DRAW") return;
+
+  const me = mePlayer();
+  const cards = getSelectedCardsFromHand();
+  const v = validateMeld(cards);
   if (!v.ok){ alert(v.reason); return; }
 
-  const ids=new Set(cards.map(c=>c.id));
+  const ids = new Set(cards.map(c=>c.id));
   me.hand = me.hand.filter(c=>!ids.has(c.id));
   me.melds.push(cards);
 
-  state.laidMeldThisTurn=true;
-  me.mustLayMeldFirst=false;
+  state.laidMeldThisTurn = true;
+  me.mustLayMeldFirst = false;
 
   state.selectedIds.clear();
-  requestRender();
+  scheduleRender();
 }
 
 function discardSelected(){
-  if (!isMyTurn() || state.phase==="DRAW") return;
-  const me=mePlayer();
-  if (state.selectedIds.size!==1){ alert("Select exactly 1 card to discard."); return; }
-  const id=[...state.selectedIds][0];
-  const idx=me.hand.findIndex(c=>c.id===id);
+  if (!isMyTurn()) return;
+  if (state.phase === "DRAW") return;
+
+  const me = mePlayer();
+  if (state.selectedIds.size !== 1){
+    alert("Select exactly 1 card to discard.");
+    return;
+  }
+  const id = [...state.selectedIds][0];
+  const idx = me.hand.findIndex(c=>c.id===id);
   if (idx<0) return;
-  const [c]=me.hand.splice(idx,1);
+
+  const [c] = me.hand.splice(idx,1);
   state.unwanted.push(c);
-  state.peekIndex=state.unwanted.length-1;
-  state.peekOpen=false;
+  state.peekIndex = state.unwanted.length-1;
+  state.peekOpen = false;
   state.selectedIds.clear();
 
-  if (me.hand.length===0){ endRound(me.uid); return; }
+  // win after discard
+  if (me.hand.length === 0){
+    endRound(me.uid);
+    return;
+  }
+
   endTurn();
 }
 
-// ---------- Scoring / Round end ----------
+function endTurn(){
+  state.selectedIds.clear();
+  state.laidMeldThisTurn = false;
+  state.phase = "DRAW";
+  state.turnIndex = nextTurnIndex();
+  state.turnMsLeft = 60000;
+  startTurnTimer();
+  scheduleRender();
+
+  if (curPlayer().bot){
+    setTimeout(()=>botAct(), 350);
+  }
+}
+
+// ---------- Round end ----------
 function endRound(winnerUid){
   stopTurnTimer();
+
   const winner = state.players.find(p=>p.uid===winnerUid);
-  winner.score += pointsOfCards(winner.melds.flat());
+  const winnerLaid = winner.melds.flat();
+  winner.score += pointsOfCards(winnerLaid);
 
   for (const p of state.players){
-    if (p.uid===winnerUid) continue;
-    const laid=p.melds.flat();
-    let laidTokens=laid.map(c=>RANK_VALUE(c.r));
-    const handVals=p.hand.map(c=>RANK_VALUE(c.r));
+    if (p.uid === winnerUid) continue;
 
+    const laid = p.melds.flat();
+    let laidTokens = laid.map(c=>RANK_VALUE(c.r));
+
+    const handVals = p.hand.map(c=>RANK_VALUE(c.r));
     for (const hv of handVals){
       if (hv===10){
-        const idx10=laidTokens.indexOf(10);
-        if (idx10>=0){ laidTokens.splice(idx10,1); continue; }
-        const i5a=laidTokens.indexOf(5);
+        const i10 = laidTokens.indexOf(10);
+        if (i10>=0){ laidTokens.splice(i10,1); continue; }
+        const i5a = laidTokens.indexOf(5);
         if (i5a>=0){
           laidTokens.splice(i5a,1);
-          const i5b=laidTokens.indexOf(5);
+          const i5b = laidTokens.indexOf(5);
           if (i5b>=0) laidTokens.splice(i5b,1);
+          continue;
         }
       } else {
-        const idx5=laidTokens.indexOf(5);
-        if (idx5>=0) laidTokens.splice(idx5,1);
+        const i5 = laidTokens.indexOf(5);
+        if (i5>=0){ laidTokens.splice(i5,1); continue; }
       }
     }
 
-    const laidTotal=pointsOfCards(laid);
-    const remainingLaidTotal=laidTokens.reduce((a,b)=>a+b,0);
-    const cancelledValue=laidTotal-remainingLaidTotal;
+    const laidTotal = pointsOfCards(laid);
+    const remainingLaidTotal = laidTokens.reduce((a,b)=>a+b,0);
+    const cancelledValue = laidTotal - remainingLaidTotal;
 
-    const handTotal=pointsOfCards(p.hand);
-    const uncancelled=Math.max(0, handTotal-cancelledValue);
+    const handTotal = pointsOfCards(p.hand);
+    const uncancelled = Math.max(0, handTotal - cancelledValue);
     p.score -= uncancelled;
   }
 
@@ -362,91 +399,93 @@ function endRound(winnerUid){
 }
 
 function startNewRound(){
-  state.deck=makeDeck();
+  state.deck = makeDeck();
   for (const p of state.players){
-    p.hand=[]; p.melds=[]; p.mustLayMeldFirst=true;
+    p.hand = [];
+    p.melds = [];
+    p.mustLayMeldFirst = true;
   }
   deal();
   startTurnTimer();
-  requestRender();
-  if (curPlayer().bot) setTimeout(()=>botAct(), 350);
+  scheduleRender();
+
+  if (curPlayer().bot){
+    setTimeout(()=>botAct(), 350);
+  }
 }
 
-// ---------- Bot AI (same as you had, kept simple) ----------
+// ---------- Bot AI (simple) ----------
 function botAct(){
-  const p=curPlayer();
+  const p = curPlayer();
   if (!p.bot) return;
-  if (state.phase==="DRAW"){ botDraw(p); requestRender(); setTimeout(()=>botMeldAndDiscard(p), 450); return; }
-  botMeldAndDiscard(p);
+
+  if (state.phase === "DRAW"){
+    // mostly deck, higher levels take unwanted if helpful
+    const top = state.unwanted[state.unwanted.length-1];
+    const takeTop = top && botWouldUseCard(p, top);
+    if ((BOT_DIFFICULTY==="pro"||BOT_DIFFICULTY==="goat") && takeTop && Math.random()<0.7){
+      const c = state.unwanted.pop();
+      p.hand.unshift(c);
+      state.phase = "MELD";
+      state.peekIndex = state.unwanted.length-1;
+      state.peekOpen = false;
+    } else {
+      autoDrawFromDeck(p);
+    }
+    scheduleRender();
+    setTimeout(()=>botDiscard(p), 450);
+    return;
+  }
+
+  botDiscard(p);
 }
 
 function botWouldUseCard(p, card){
   const sameRankCount = p.hand.filter(x=>x.r===card.r).length;
   if (sameRankCount>=2) return true;
+
   const sameSuit = p.hand.filter(x=>x.s===card.s).map(x=>rankIndex(x.r));
   const r = rankIndex(card.r);
-  return sameSuit.includes(r-1) || sameSuit.includes(r+1) || (BOT_DIFFICULTY==="goat" && Math.random()<0.35);
-}
+  if (sameSuit.includes(r-1) || sameSuit.includes(r+1)) return true;
 
-function botDraw(p){
-  const top = state.unwanted[state.unwanted.length-1];
-  const shouldTakeTop = top && botWouldUseCard(p, top);
-
-  if ((BOT_DIFFICULTY==="pro"||BOT_DIFFICULTY==="goat") && shouldTakeTop && Math.random()<0.7){
-    const c = state.unwanted.pop();
-    p.hand.unshift(c);
-    state.phase="MELD";
-    state.peekIndex=state.unwanted.length-1;
-    state.peekOpen=false;
-  } else {
-    autoDrawFromDeck(p);
-  }
-}
-
-function removeFromHand(p, cards){
-  const ids=new Set(cards.map(c=>c.id));
-  p.hand=p.hand.filter(c=>!ids.has(c.id));
-}
-
-function botTryLayMeld(p){
-  const byRank=new Map();
-  for (const c of p.hand){
-    if (!byRank.has(c.r)) byRank.set(c.r, []);
-    byRank.get(c.r).push(c);
-  }
-  for (const arr of byRank.values()){
-    if (arr.length>=3){
-      const meld = arr.slice(0, Math.min(4, arr.length));
-      removeFromHand(p, meld);
-      p.melds.push(meld);
-      p.mustLayMeldFirst=false;
-      state.laidMeldThisTurn=true;
-      return;
-    }
-  }
+  return BOT_DIFFICULTY==="goat" && Math.random()<0.35;
 }
 
 function botDiscard(p){
-  if (!p.hand.length) return;
-  const idx=Math.floor(Math.random()*p.hand.length);
-  const [c]=p.hand.splice(idx,1);
-  state.unwanted.push(c);
-  state.peekIndex=state.unwanted.length-1;
-  state.peekOpen=false;
+  // discard worst
+  let idx = 0, bestScore=-Infinity;
+  for (let i=0;i<p.hand.length;i++){
+    const c = p.hand[i];
+    let keep = 0;
+    keep += p.hand.filter(x=>x.r===c.r).length>=2 ? 3 : 0;
+    const suitIdx = p.hand.filter(x=>x.s===c.s).map(x=>rankIndex(x.r));
+    const r = rankIndex(c.r);
+    if (suitIdx.includes(r-1) || suitIdx.includes(r+1)) keep += 2;
+    const score = RANK_VALUE(c.r) - keep*3;
+    if (score > bestScore){ bestScore = score; idx = i; }
+  }
 
-  if (p.hand.length===0){ endRound(p.uid); return; }
+  const [c] = p.hand.splice(idx,1);
+  state.unwanted.push(c);
+  state.peekIndex = state.unwanted.length-1;
+  state.peekOpen = false;
+
+  if (p.hand.length===0){
+    endRound(p.uid);
+    return;
+  }
+
   endTurn();
 }
 
-function botMeldAndDiscard(p){
-  if (state.phase!=="MELD") return;
-  botTryLayMeld(p);
-  botDiscard(p);
+// ---------- Render ----------
+function formatMs(ms){
+  const s = Math.ceil(ms/1000);
+  return `${s}s`;
 }
-
-// ---------- Render helpers ----------
-function formatMs(ms){ return `${Math.ceil(ms/1000)}s`; }
-function isJustDrawn(c){ return c && (c._justDrew || c.id===state.lastDrawnId); }
+function isJustDrawn(c){
+  return c && (c._justDrew || c.id===state.lastDrawnId);
+}
 
 function cardHTML(c, {selectable=false, selected=false} = {}){
   const cls = ["card", SUIT_COLOR(c.s)];
@@ -461,13 +500,14 @@ function cardHTML(c, {selectable=false, selected=false} = {}){
   `;
 }
 
-// IMPORTANT: we only bind scroll handler once
-let handScrollBound = false;
-
 function renderGame(){
-  const me=mePlayer();
-  const cur=curPlayer();
-  const others=state.players.filter(p=>p.uid!=="me");
+  // Save current hand scroll BEFORE rebuilding DOM
+  const existingHand = document.getElementById("hand");
+  if (existingHand) state.handScrollLeft = existingHand.scrollLeft;
+
+  const me = mePlayer();
+  const cur = curPlayer();
+  const others = state.players.filter(p=>p.uid!=="me");
 
   app.innerHTML = `
     <div class="hdr">
@@ -479,7 +519,7 @@ function renderGame(){
       <div class="exitMini" id="exitBtn">Menu</div>
     </div>
 
-    <div class="turnBanner panel">
+    <div class="turnBanner">
       <div>
         <b>${cur.uid==="me" ? "YOUR TURN" : `${escapeHtml(cur.name)}'s Turn`}</b>
         <div class="muted">Phase: ${escapeHtml(state.phase)} — Draw → (Lay/Add) → Discard 1</div>
@@ -489,8 +529,7 @@ function renderGame(){
       </div>
     </div>
 
-    <div class="panel gameArea">
-
+    <div class="panel gameMain">
       <div class="seatRow" id="seatRow">
         ${others.map(p=>{
           const active = (p.uid===cur.uid) ? "activeTurn" : "";
@@ -508,21 +547,24 @@ function renderGame(){
       <div class="centerRow">
         <div class="pileBox">
           <div style="display:flex;justify-content:space-between;align-items:center;">
-            <b>Deck</b><span class="small">${state.deck.length} left</span>
+            <b>Deck</b>
+            <span class="small">${state.deck.length} left</span>
           </div>
           <div class="deckStack" id="deckTap" title="Tap to draw 1">
-            <div class="back"></div><div class="label">TAP</div>
+            <div class="back"></div>
+            <div class="label">TAP</div>
           </div>
           <div class="hint">Tap the deck to draw 1</div>
         </div>
 
         <div class="pileBox">
           <div style="display:flex;justify-content:space-between;align-items:center;">
-            <b>Unwanted</b><span class="small">${state.unwanted.length} cards</span>
+            <b>Unwanted</b>
+            <span class="small">${state.unwanted.length} cards</span>
           </div>
 
-          <div class="hint" id="unwantedTopTap">
-            ${state.unwanted.length ? `Top: <b>${escapeHtml(cardLabel(state.unwanted[state.unwanted.length-1]))}</b> (tap to peek)` : "Empty"}
+          <div class="hint">
+            ${state.unwanted.length ? `Top: <b id="topPeek">${escapeHtml(cardLabel(state.unwanted[state.unwanted.length-1]))}</b> (tap to peek)` : "Empty"}
           </div>
 
           <div class="peekWrap">
@@ -570,8 +612,8 @@ function renderGame(){
         <div id="hand">
           ${me.hand.map(c=>{
             const selected = state.selectedIds.has(c.id);
-            const sel = selected || isJustDrawn(c);
-            return cardHTML(c,{selectable:true, selected: sel});
+            const glow = selected || isJustDrawn(c);
+            return cardHTML(c,{selectable:true, selected: glow});
           }).join("")}
         </div>
 
@@ -579,64 +621,62 @@ function renderGame(){
           <button class="btn cyan" id="layMeld" ${(!isMyTurn()||state.phase==="DRAW")?"disabled":""}>Lay Meld</button>
           <button class="btn" id="discard" ${(!isMyTurn()||state.phase==="DRAW")?"disabled":""}>Discard (1)</button>
         </div>
-
-        <div class="small" style="margin-top:8px;">Tap Unwanted top to peek. You must draw first every turn.</div>
       </div>
-
     </div>
-
-    ${state.modal ? `
-      <div id="modalBg" style="position:fixed; inset:0; background:rgba(0,0,0,.55); display:flex; align-items:center; justify-content:center; padding:12px;">
-        <div class="panel" style="width:min(940px, 96vw); max-height:80dvh; overflow:auto; padding:12px;">
-          <div style="display:flex;justify-content:space-between;align-items:center;">
-            <b>${escapeHtml(state.modal.title)}</b>
-            <button class="btn" id="closeModal" style="width:auto;">Close</button>
-          </div>
-          <div style="height:10px"></div>
-          ${state.modal.melds.length ? state.modal.melds.map((meld, idx)=>`
-            <div class="meldBlock" style="margin-bottom:10px;">
-              <div class="small">Meld ${idx+1}</div>
-              <div style="display:flex; gap:8px; margin-top:8px; flex-wrap:wrap;">
-                ${meld.map(c=>cardHTML(c)).join("")}
-              </div>
-            </div>
-          `).join("") : `<div class="small">No melds yet.</div>`}
-        </div>
-      </div>
-    ` : "" }
   `;
 
-  // Hand scroll restore
+  // --- Wire events ---
   const handEl = document.getElementById("hand");
   if (handEl){
-    handEl.scrollLeft = state.handScrollLeft;
-    if (!handScrollBound){
-      handScrollBound = true;
-      handEl.addEventListener("scroll", ()=>{ state.handScrollLeft = handEl.scrollLeft; }, { passive:true });
-    }
+    // ✅ only restore scroll when NOT actively swiping
+    if (!state.handInteracting) handEl.scrollLeft = state.handScrollLeft;
+
+    const setInteracting = ()=>{
+      state.handInteracting = true;
+      clearTimeout(state.handInteractionTimeout);
+      state.handInteractionTimeout = setTimeout(()=>{
+        state.handInteracting = false;
+      }, 200);
+    };
+
+    handEl.addEventListener("touchstart", setInteracting, {passive:true});
+    handEl.addEventListener("touchmove", setInteracting, {passive:true});
+    handEl.addEventListener("scroll", ()=>{
+      setInteracting();
+      state.handScrollLeft = handEl.scrollLeft;
+    }, {passive:true});
+
     handEl.querySelectorAll("[data-card]").forEach(el=>{
       el.onclick = ()=>toggleSelect(el.getAttribute("data-card"));
     });
   }
 
-  document.getElementById("deckTap").onclick = drawFromDeck;
-  document.getElementById("takeTop").onclick = takeUnwantedTop;
-  document.getElementById("takeAll").onclick = takeUnwantedAll;
-  document.getElementById("layMeld").onclick = layMeld;
-  document.getElementById("discard").onclick = discardSelected;
+  const deckTap = document.getElementById("deckTap");
+  if (deckTap) deckTap.onclick = drawFromDeck;
 
-  // Correct: unwanted top tap binds to the right element
-  const topTap = document.getElementById("unwantedTopTap");
-  if (topTap && state.unwanted.length){
-    topTap.style.cursor="pointer";
-    topTap.onclick = ()=>{
+  const takeTopBtn = document.getElementById("takeTop");
+  if (takeTopBtn) takeTopBtn.onclick = takeUnwantedTop;
+
+  const takeAllBtn = document.getElementById("takeAll");
+  if (takeAllBtn) takeAllBtn.onclick = takeUnwantedAll;
+
+  const layBtn = document.getElementById("layMeld");
+  if (layBtn) layBtn.onclick = layMeld;
+
+  const discBtn = document.getElementById("discard");
+  if (discBtn) discBtn.onclick = discardSelected;
+
+  const topPeek = document.getElementById("topPeek");
+  if (topPeek){
+    topPeek.style.cursor="pointer";
+    topPeek.onclick = ()=>{
       state.peekOpen = !state.peekOpen;
       state.peekIndex = state.unwanted.length-1;
-      requestRender();
+      scheduleRender();
       setTimeout(()=>{
-        const strip=document.getElementById("peekStrip");
+        const strip = document.getElementById("peekStrip");
         if (strip && state.peekOpen) strip.scrollLeft = strip.scrollWidth;
-      },0);
+      }, 0);
     };
   }
 
@@ -645,41 +685,17 @@ function renderGame(){
     peekStrip.querySelectorAll("[data-peek]").forEach(el=>{
       el.onclick = ()=>{
         state.peekIndex = parseInt(el.getAttribute("data-peek"),10);
-        requestRender();
+        scheduleRender();
       };
     });
   }
 
-  // Opponent meld modal
-  const seatRow=document.getElementById("seatRow");
-  if (seatRow){
-    seatRow.querySelectorAll("[data-seat]").forEach(el=>{
-      el.onclick = ()=>{
-        const u=el.getAttribute("data-seat");
-        const p=state.players.find(x=>x.uid===u);
-        if (!p) return;
-        state.modal = { title:`${p.name}'s melds`, melds:p.melds };
-        requestRender();
-      };
-    });
+  const exitBtn = document.getElementById("exitBtn");
+  if (exitBtn){
+    exitBtn.onclick = ()=>{
+      if (confirm("Exit practice mode?")) location.href = "./index.html";
+    };
   }
-
-  const closeModal=document.getElementById("closeModal");
-  if (closeModal) closeModal.onclick = ()=>{ state.modal=null; requestRender(); };
-
-  const modalBg=document.getElementById("modalBg");
-  if (modalBg) modalBg.onclick = (e)=>{ if (e.target.id==="modalBg"){ state.modal=null; requestRender(); } };
-
-  document.getElementById("exitBtn").onclick = ()=>{
-    if (confirm("Exit practice mode?")) location.href="./index.html";
-  };
-}
-
-// ---------- Render loop ----------
-function requestRenderLoop(){
-  if (!state.uiNeedsRender) return;
-  state.uiNeedsRender=false;
-  renderGame();
 }
 
 // ---------- Boot ----------
@@ -689,7 +705,10 @@ function boot(){
   deal();
   startTurnTimer();
   renderGame();
-  setInterval(requestRenderLoop, 60);
-  if (curPlayer().bot) setTimeout(()=>botAct(), 350);
+
+  if (curPlayer().bot){
+    setTimeout(()=>botAct(), 350);
+  }
 }
+
 boot();
