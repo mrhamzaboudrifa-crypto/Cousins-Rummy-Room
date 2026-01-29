@@ -30,80 +30,137 @@ function roomLink() {
 
 function render(players, messages) {
   app.innerHTML = `
-    <div class="shell">
-      <div class="title">Cousins</div>
-      <div class="subtitle">Rummy Room</div>
-      <div class="underline"></div>
-
-      <div class="panel">
-        <div class="row">
-          <div>
-            <b>Your name</b>
-            <div class="small">Save updates for everyone</div>
-          </div>
-        </div>
-        <div style="height:10px"></div>
-        <input class="input" id="nameInput" maxlength="16" value="${escapeHtml(me.name)}" />
-        <div style="height:10px"></div>
-        <button class="btn cyan" id="saveName">Save name</button>
-
-        <div class="small" style="margin-top:10px;">
-          Room link:
-          <span id="roomLink" style="user-select:all;"></span>
-        </div>
-        <div style="height:10px"></div>
-        <button class="btn" id="copyLink">Copy link</button>
-
-        <!-- ✅ STEP 4 ADDED: Practice button -->
-        <div style="height:10px"></div>
-        <button class="btn cyan" id="practiceBtn">Practice vs Bots</button>
+    <div class="hdr">
+      <div class="brand">
+        <div class="title">Cousins</div>
+        <div class="subtitle">Rummy Room</div>
+        <div class="underline"></div>
       </div>
+      <div class="exitMini" id="refreshBtn">Refresh</div>
+    </div>
 
-      <div class="panel">
+    <div class="panel" style="padding:12px;">
+      <b>Your name</b>
+      <div class="small">Save updates for everyone</div>
+      <div style="height:10px"></div>
+      <input
+        id="nameInput"
+        maxlength="16"
+        value="${escapeHtml(me.name)}"
+        style="
+          width:100%;
+          padding:12px;
+          border-radius:14px;
+          border:1px solid rgba(255,255,255,.14);
+          background: rgba(0,0,0,.25);
+          color: rgba(240,248,255,.92);
+          outline:none;
+          font-size:16px;
+        "
+      />
+      <div style="height:10px"></div>
+      <button class="btn cyan" id="saveName">Save name</button>
+
+      <div class="small" style="margin-top:12px;">
+        Room link:
+        <span id="roomLink" style="user-select:all; word-break:break-all;"></span>
+      </div>
+      <div style="height:10px"></div>
+      <button class="btn" id="copyLink">Copy link</button>
+
+      <div style="height:10px"></div>
+      <button class="btn cyan" id="practiceBtn">Practice vs Bots</button>
+    </div>
+
+    <div class="panel" style="padding:12px; flex:1; min-height:0; display:flex; flex-direction:column; gap:12px;">
+      <div>
         <b>Players online</b> <span class="small">(${players.length})</span>
-        <div class="list">
-          ${
-            players.length
-              ? players
-                  .map(
-                    (p) => `
-              <div class="item">
-                <b>${escapeHtml(p.name)}</b>
-                <span class="small"> — ${p.online ? "online" : "offline"}</span>
-              </div>`
-                  )
-                  .join("")
-              : `<div class="small">Nobody yet… Share the link above.</div>`
-          }
-        </div>
       </div>
 
-      <div class="panel">
-        <b>Chat</b>
-        <div class="chat" id="chatBox">
-          ${
-            messages.length
-              ? messages
-                  .map(
-                    (m) => `
-            <div class="item">
-              <b>${escapeHtml(m.name)}:</b>
-              <span class="small">${escapeHtml(m.text)}</span>
-            </div>`
-                  )
-                  .join("")
-              : `<div class="small">No messages yet…</div>`
-          }
-        </div>
-        <div style="height:10px"></div>
-        <input class="input" id="chatInput" placeholder="Type a message…" />
-        <div style="height:10px"></div>
-        <button class="btn" id="sendBtn">Send</button>
+      <div style="display:flex; flex-direction:column; gap:8px; overflow:auto; -webkit-overflow-scrolling:touch;">
+        ${
+          players.length
+            ? players
+                .map(
+                  (p) => `
+                    <div style="
+                      padding:10px;
+                      border-radius:14px;
+                      border:1px solid rgba(160,210,255,.16);
+                      background: rgba(0,0,0,.18);
+                    ">
+                      <b>${escapeHtml(p.name)}</b>
+                      <span class="small"> — ${p.online ? "online" : "offline"}</span>
+                    </div>
+                  `
+                )
+                .join("")
+            : `<div class="small">Nobody yet… Share the link above.</div>`
+        }
       </div>
+    </div>
+
+    <div class="panel" style="padding:12px; flex:1; min-height:0; display:flex; flex-direction:column;">
+      <b>Chat</b>
+
+      <div id="chatBox" style="
+        margin-top:10px;
+        flex:1;
+        min-height:0;
+        overflow:auto;
+        -webkit-overflow-scrolling:touch;
+        display:flex;
+        flex-direction:column;
+        gap:8px;
+        padding:10px;
+        border-radius:14px;
+        border:1px solid rgba(160,210,255,.12);
+        background: rgba(0,0,0,.16);
+      ">
+        ${
+          messages.length
+            ? messages
+                .map(
+                  (m) => `
+                    <div style="
+                      padding:10px;
+                      border-radius:14px;
+                      border:1px solid rgba(255,255,255,.10);
+                      background: rgba(255,255,255,.06);
+                    ">
+                      <b>${escapeHtml(m.name)}:</b>
+                      <span class="small">${escapeHtml(m.text)}</span>
+                    </div>
+                  `
+                )
+                .join("")
+            : `<div class="small">No messages yet…</div>`
+        }
+      </div>
+
+      <div style="height:10px"></div>
+      <input
+        id="chatInput"
+        placeholder="Type a message…"
+        style="
+          width:100%;
+          padding:12px;
+          border-radius:14px;
+          border:1px solid rgba(255,255,255,.14);
+          background: rgba(0,0,0,.25);
+          color: rgba(240,248,255,.92);
+          outline:none;
+          font-size:16px;
+        "
+      />
+      <div style="height:10px"></div>
+      <button class="btn" id="sendBtn">Send</button>
     </div>
   `;
 
   document.getElementById("roomLink").textContent = roomLink();
+
+  document.getElementById("refreshBtn").onclick = () => location.reload();
 
   document.getElementById("copyLink").onclick = async () => {
     try {
@@ -114,7 +171,6 @@ function render(players, messages) {
     }
   };
 
-  // ✅ STEP 4 ADDED: Practice link (default 1 bot + easy)
   document.getElementById("practiceBtn").onclick = () => {
     location.href = `practice.html?bots=1&difficulty=easy`;
   };
