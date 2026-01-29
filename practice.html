@@ -5,16 +5,19 @@
   <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
   <meta name="theme-color" content="#070712" />
   <title>Cousins Rummy Room — Practice</title>
+
+  <!-- Shared neon UI styles -->
   <link rel="stylesheet" href="./style.css" />
 </head>
 
 <body class="practice">
+  <!-- Background layer (same as lobby, but practice can use bar.jpg if you add it) -->
   <div class="bg"></div>
 
-  <div class="safe">
-    <div id="app" class="shell gameLayout"></div>
-  </div>
+  <!-- App mount -->
+  <div id="app"></div>
 
+  <!-- Practice mode logic -->
   <script src="./practice.js"></script>
 </body>
 </html>
