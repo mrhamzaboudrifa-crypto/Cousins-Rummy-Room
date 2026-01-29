@@ -2,23 +2,27 @@
 <html lang="en">
 <head>
   <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
+  <meta
+    name="viewport"
+    content="width=device-width, initial-scale=1, viewport-fit=cover"
+  />
   <meta name="theme-color" content="#070712" />
   <title>Cousins Rummy Room — Practice</title>
 
-  <!-- Shared styles (your main neon UI + practice layout) -->
+  <!-- Shared neon UI + game styles -->
   <link rel="stylesheet" href="./style.css" />
 </head>
 
-<!-- IMPORTANT: class="practice" makes practice lock page scroll + apply practice bg rules -->
+<!-- class="practice" is CRITICAL -->
 <body class="practice">
-  <!-- Optional background layer (style.css targets .bg) -->
+
+  <!-- Background layer (bar / neon handled in CSS) -->
   <div class="bg"></div>
 
-  <!-- App mounts here -->
+  <!-- Game mounts here -->
   <div id="app"></div>
 
-  <!-- Practice mode logic -->
+  <!-- Practice logic -->
   <script src="./practice.js"></script>
 </body>
 </html>
