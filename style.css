@@ -1,24 +1,20 @@
 /* =========================
    Cousins Rummy Room — Shared UI (Lobby + Practice)
+   - Lobby scrolls normally
+   - Practice is one-screen + smooth sliders (no “fighting finger”)
    ========================= */
 
 :root{
   --panel: rgba(10,14,22,.62);
   --panel2: rgba(0,0,0,.22);
   --stroke: rgba(160,210,255,.22);
-  --stroke2: rgba(160,210,255,.14);
   --text: rgba(240,248,255,.92);
   --muted: rgba(240,248,255,.62);
   --danger: #ff5b5b;
-  --accent: rgba(120,210,255,.85);
 
-  /* ✅ Slightly bigger & clearer cards */
-  --card-w: clamp(54px, 14vw, 78px);
-  --card-h: calc(var(--card-w) * 1.38);
-
-  /* Deck back size (smaller than cards) */
-  --deck-w: clamp(52px, 10vw, 70px);
-  --deck-h: calc(var(--deck-w) * 1.38);
+  /* slightly bigger cards (clear suits) */
+  --card-w: clamp(56px, 14vw, 82px);
+  --card-h: calc(var(--card-w) * 1.35);
 }
 
 *{ box-sizing:border-box; -webkit-tap-highlight-color: transparent; }
@@ -33,18 +29,18 @@ html, body{
   overflow-x:hidden;
 }
 
-/* ✅ Lobby scrolls normally */
+/* Lobby can scroll */
 body{
   overflow-y:auto;
   overscroll-behavior: none;
 }
 
-/* ✅ Practice locks page scroll (one-screen app) */
+/* Practice locks page scroll */
 body.practice{
   overflow:hidden;
 }
 
-/* Background layer */
+/* Background */
 .bg{
   position:fixed;
   inset:0;
@@ -56,17 +52,7 @@ body.practice{
     linear-gradient(180deg, rgba(6,8,14,.86), rgba(6,8,14,.92));
 }
 
-/* Optional “bar” photo layer (drop bar.jpg into repo root if you want) */
-body.practice .bg{
-  background:
-    linear-gradient(180deg, rgba(0,0,0,.45), rgba(0,0,0,.70)),
-    url("./bar.jpg") center/cover no-repeat,
-    radial-gradient(1200px 800px at 20% 10%, rgba(255,140,80,.14), transparent 60%),
-    radial-gradient(900px 700px at 70% 40%, rgba(80,180,255,.14), transparent 60%),
-    linear-gradient(180deg, rgba(6,8,14,.86), rgba(6,8,14,.92));
-}
-
-/* Safe wrapper */
+/* iPhone safe area wrapper */
 .safe{
   min-height:100dvh;
   width:100vw;
@@ -91,7 +77,7 @@ body.practice .bg{
   gap:12px;
 }
 
-/* ---------- Branding ---------- */
+/* Brand */
 .title{
   font-size:28px;
   font-weight:900;
@@ -114,6 +100,7 @@ body.practice .bg{
   margin-top:8px;
 }
 
+/* Panels */
 .panel{
   background: var(--panel);
   border:1px solid var(--stroke);
@@ -122,9 +109,9 @@ body.practice .bg{
   overflow:hidden;
   padding:12px;
 }
-.row{ display:flex; justify-content:space-between; align-items:center; gap:12px; }
 .small{ font-size:12px; color:var(--muted); }
 
+/* Inputs / Buttons */
 .input{
   width:100%;
   padding:12px 12px;
@@ -133,7 +120,7 @@ body.practice .bg{
   background: rgba(0,0,0,.28);
   color:var(--text);
   outline:none;
-  font-size:16px;
+  font-size:16px; /* stops iOS zoom */
 }
 .btn{
   width:100%;
@@ -151,6 +138,7 @@ body.practice .bg{
 }
 .btn:disabled{ opacity:.45; }
 
+/* Lobby lists/chat */
 .list{ margin-top:10px; display:flex; flex-direction:column; gap:8px; }
 .item{
   padding:10px;
@@ -166,9 +154,10 @@ body.practice .bg{
 }
 
 /* =========================================
-   PRACTICE — one-screen layout
+   PRACTICE MODE (ONE SCREEN)
    ========================================= */
 
+/* Compact header */
 .hdr{
   display:flex;
   justify-content:space-between;
@@ -186,6 +175,7 @@ body.practice .bg{
   user-select:none;
 }
 
+/* Turn banner */
 .turnBanner{
   display:flex;
   justify-content:space-between;
@@ -199,8 +189,9 @@ body.practice .bg{
 .turnBanner .muted{ color:var(--muted); font-size:12px; }
 .danger{ color:var(--danger); font-weight:900; }
 
+/* One screen */
 .gameLayout{
-  height:100dvh;
+  height: calc(100dvh - 24px);
   display:flex;
   flex-direction:column;
   overflow:hidden;
@@ -213,16 +204,14 @@ body.practice .bg{
   padding-bottom:10px;
 }
 
-/* Opponents */
+/* Opponents row */
 .seatRow{
   display:flex;
   gap:10px;
   overflow-x:auto;
   -webkit-overflow-scrolling: touch;
   padding-bottom:4px;
-  touch-action: pan-x;
 }
-.seatRow::-webkit-scrollbar{ display:none; }
 .seatBox{
   min-width:180px;
   border-radius:16px;
@@ -230,17 +219,15 @@ body.practice .bg{
   background: var(--panel2);
   border:1px solid rgba(160,210,255,.16);
 }
-.seatBox b{ font-size:14px; }
 .activeTurn{
   box-shadow: 0 0 0 2px rgba(120,210,255,.45), 0 0 28px rgba(120,210,255,.16);
 }
 
-/* ✅ Unwanted big + center, Deck small right */
+/* Deck + unwanted (unwanted bigger, deck smaller) */
 .centerRow{
   display:grid;
-  grid-template-columns: 1fr 160px;
+  grid-template-columns: 0.65fr 1.35fr;
   gap:12px;
-  align-items:stretch;
 }
 .pileBox{
   border-radius:16px;
@@ -249,21 +236,15 @@ body.practice .bg{
   border:1px solid rgba(160,210,255,.16);
   overflow:hidden;
 }
-.pileBox.unwantedBig{
-  min-height: 140px;
-}
-.pileBox.deckSmall{
-  display:flex;
-  flex-direction:column;
-  justify-content:flex-start;
-}
 
 /* Deck stack (smaller) */
 .deckStack{
   position:relative;
-  width: calc(var(--deck-w) + 18px);
-  height: calc(var(--deck-h) + 18px);
+  width: calc(var(--card-w) + 8px);
+  height: calc(var(--card-h) + 8px);
   margin:10px auto 6px;
+  transform: scale(0.78);
+  transform-origin:center top;
 }
 .back{
   position:absolute;
@@ -283,54 +264,59 @@ body.practice .bg{
   transform:translate(-50%,-50%);
   font-weight:900;
   letter-spacing:1px;
-  opacity:.9;
+  opacity:.85;
 }
-.hint{ font-size:12px; color:var(--muted); text-align:center; margin-top:6px; }
+.hint{ font-size:11px; color:var(--muted); text-align:center; margin-top:6px; }
 
-/* ✅ Top card tap area (big + reliable) */
-.unwantedTopTap{
-  margin-top:8px;
-  width:100%;
+/* Unwanted top card bigger */
+.unwantedTop{
   display:flex;
-  align-items:center;
   justify-content:center;
-  gap:10px;
-  padding:10px 12px;
-  border-radius:14px;
-  border:1px solid rgba(160,210,255,.16);
-  background: rgba(0,0,0,.22);
-  user-select:none;
-  touch-action: manipulation;
+  margin-top:10px;
 }
-.unwantedTopTap:active{ transform: scale(.99); }
-.unwantedTopTap b{ font-size:14px; }
+.unwantedTop .card{
+  transform: scale(1.10);
+  transform-origin:center;
+}
 
-/* Peek strip */
-.peekWrap{ margin-top:10px; overflow:hidden; }
-.peekStrip{
-  display:flex;
-  gap:10px;
+/* Horizontal strips — IMPORTANT: remove snap/smooth to stop “fighting finger” */
+#hand, .peekStrip, .meldTrayBody, .seatRow{
+  scroll-snap-type:none !important;
+  scroll-behavior:auto !important;
   overflow-x:auto;
   overflow-y:hidden;
   -webkit-overflow-scrolling: touch;
   touch-action: pan-x !important;
-  padding:6px 2px 8px;
+  overscroll-behavior-x: contain;
   scrollbar-width:none;
 }
-.peekStrip::-webkit-scrollbar{ display:none; }
-.peekCard{ flex:0 0 auto; opacity:.88; transform: scale(.96); }
+#hand::-webkit-scrollbar,
+.peekStrip::-webkit-scrollbar,
+.meldTrayBody::-webkit-scrollbar,
+.seatRow::-webkit-scrollbar{
+  display:none;
+}
+
+/* Unwanted peek strip */
+.peekWrap{ margin-top:10px; overflow:hidden; }
+.peekStrip{
+  display:flex;
+  gap:10px;
+  padding:6px 2px 8px;
+}
+.peekCard{ flex:0 0 auto; opacity:.9; transform: scale(.98); }
 .peekCard.active{
   opacity:1;
-  transform: scale(1);
+  transform: scale(1.02);
   filter: drop-shadow(0 0 12px rgba(120,210,255,.22));
 }
 
-/* Cards (clear suits) */
+/* Cards */
 .card{
   width: var(--card-w);
   height: var(--card-h);
   border-radius:14px;
-  background: rgba(255,255,255,.98);
+  background: rgba(255,255,255,.96);
   border:1px solid rgba(0,0,0,.10);
   position:relative;
   overflow:hidden;
@@ -356,19 +342,18 @@ body.practice .bg{
 }
 .corner.tl{ top:6px; left:6px; }
 .corner.br{ bottom:6px; right:6px; transform: rotate(180deg); }
-
 .pip{
   position:absolute;
   left:50%;
   top:50%;
   transform:translate(-50%,-50%);
-  font-size:34px; /* ✅ clearer suit */
-  opacity:.95;
+  font-size:32px;
+  opacity:.98;
 }
 
-/* Selected / new draw highlight */
+/* Selected / new draw */
 .card.sel{
-  outline:2px solid rgba(120,210,255,.9);
+  outline:2px solid rgba(120,210,255,.95);
   box-shadow: 0 0 0 2px rgba(120,210,255,.35), 0 12px 26px rgba(0,0,0,.30);
   transform: translateY(-4px);
 }
@@ -388,13 +373,8 @@ body.practice .bg{
   margin-top:8px;
   display:flex;
   gap:10px;
-  overflow-x:auto;
-  -webkit-overflow-scrolling: touch;
   padding-bottom:6px;
-  touch-action: pan-x;
-  scrollbar-width:none;
 }
-.meldTrayBody::-webkit-scrollbar{ display:none; }
 .meldBlock{
   flex:0 0 auto;
   border-radius:14px;
@@ -403,7 +383,7 @@ body.practice .bg{
   border:1px solid rgba(160,210,255,.12);
 }
 
-/* Hand bar bottom */
+/* Hand bar (bottom) */
 .handBar{
   position:sticky;
   bottom:0;
@@ -414,20 +394,13 @@ body.practice .bg{
   border:1px solid rgba(160,210,255,.18);
   backdrop-filter: blur(10px);
 }
-.handHead{ display:flex; justify-content:space-between; align-items:center; gap:10px; }
+.handHead{ display:flex; justify-content:space-between; align-items:flex-end; }
 
-/* ✅ Smooth, non-fighting hand slider */
 #hand{
   display:flex;
   gap:10px;
-  overflow-x:auto;
-  overflow-y:hidden;
-  -webkit-overflow-scrolling: touch;
-  touch-action: pan-x !important;
   padding:10px 2px 6px;
-  scrollbar-width:none;
 }
-#hand::-webkit-scrollbar{ display:none; }
 
 /* Small phones */
 @media (max-width: 420px){
@@ -435,5 +408,5 @@ body.practice .bg{
   .brand .title{ font-size:18px; }
   .underline{ width:160px; }
   .seatBox{ min-width:160px; }
-  .centerRow{ grid-template-columns: 1fr 140px; }
+  .centerRow{ grid-template-columns: 1fr; }
 }
