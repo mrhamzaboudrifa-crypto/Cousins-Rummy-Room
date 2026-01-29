@@ -1,199 +1,45 @@
 <!doctype html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
-  <meta name="theme-color" content="#070712" />
-  <title>Practice — Cousins Rummy Room</title>
-  <link rel="stylesheet" href="style.css" />
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
+  <title>Cousins Rummy Room — Practice</title>
+
+  <!-- Your main neon UI styles -->
+  <link rel="stylesheet" href="./style.css" />
+
+  <!-- Small practice-only fixes so it stays ONE screen on phones -->
   <style>
-    /* App centering */
-    #app{width:100%;display:flex;justify-content:center;}
-    .safe{width:100%;min-height:100vh;display:flex;justify-content:center;align-items:flex-start;padding:16px;}
-    .shell{width:100%;max-width:520px;margin:0 auto;}
+    html, body { height: 100%; }
+    body { margin: 0; overflow: hidden; overscroll-behavior: none; }
 
-    /* Sexy header */
-    .hdr{display:flex;justify-content:space-between;align-items:flex-start;gap:10px;margin-bottom:10px;}
-    .brand{display:flex;flex-direction:column;gap:4px;}
-    .title{font-size:34px;font-weight:900;letter-spacing:.3px;}
-    .subtitle{
-      font-size:28px;font-weight:900;
-      color:rgba(190,240,255,.92);
-      text-shadow:0 0 12px rgba(111,214,255,.25), 0 18px 50px rgba(0,0,0,.40);
-      margin-top:2px;
-    }
-    .underline{
-      height:4px;width:180px;border-radius:999px;margin:10px 0 2px;
-      background:linear-gradient(90deg, rgba(111,214,255,1), rgba(111,214,255,.2));
-      box-shadow:0 0 18px rgba(111,214,255,.25);
-    }
-    .exitMini{
-      padding:10px 12px;border-radius:14px;
-      border:1px solid rgba(255,255,255,.14);
-      background:rgba(0,0,0,.16);
-      font-weight:900;cursor:pointer;user-select:none;
-    }
+    /* Make the app fill the phone screen properly (iPhone/Android) */
+    #app { height: 100dvh; width: 100vw; overflow: hidden; }
 
-    /* Turn banner */
-    .turnBanner{
-      margin-top:10px;
-      padding:12px 12px;
-      border-radius:16px;
-      border:1px solid rgba(255,255,255,.14);
-      background:linear-gradient(180deg, rgba(111,214,255,.14), rgba(0,0,0,.18));
-      box-shadow:0 12px 30px rgba(0,0,0,.35), 0 0 18px rgba(111,214,255,.12);
-      display:flex;justify-content:space-between;align-items:center;gap:10px;
-      font-weight:900;
-    }
-    .turnBanner .muted{font-weight:800;color:rgba(242,243,255,.72);font-size:12px;}
-    .danger{color:#ffd6dd;text-shadow:0 0 14px rgba(255,78,106,.25);}
+    /* If your style.css has a max-width shell, this prevents side shifting */
+    .shell, .safe { width: 100% !important; max-width: none !important; }
 
-    /* Setup UI */
-    .grid{display:flex;flex-direction:column;gap:12px;}
-    .pills{display:flex;gap:10px;flex-wrap:wrap;}
-    .pill{
-      padding:10px 12px;border-radius:14px;
-      border:1px solid rgba(255,255,255,.14);
-      background:rgba(0,0,0,.16);
-      font-weight:900;cursor:pointer;
-    }
-    .pill.active{outline:2px solid rgba(111,214,255,.65);box-shadow:0 0 16px rgba(111,214,255,.18);}
-
-    /* Table / seats */
-    .gameArea{display:flex;flex-direction:column;gap:10px;}
-    .seatRow{display:flex;justify-content:space-between;gap:10px;flex-wrap:wrap;}
-    .seatBox{
-      flex:1;min-width:140px;
-      background:rgba(0,0,0,.18);
-      border:1px solid rgba(255,255,255,.14);
-      border-radius:16px;padding:10px;
-      transition: box-shadow .15s ease, border-color .15s ease;
-    }
-    .seatBox.activeTurn{
-      border-color:rgba(111,214,255,.55);
-      box-shadow:0 0 0 3px rgba(111,214,255,.12), 0 0 18px rgba(111,214,255,.10);
-    }
-
-    .centerRow{display:flex;gap:10px;justify-content:space-between;}
-    .pileBox{
-      flex:1;
-      background:rgba(0,0,0,.18);
-      border:1px solid rgba(255,255,255,.14);
-      border-radius:16px;padding:10px;text-align:center;
-    }
-
-    /* HAND SLIDER (always scrollable) */
-    #hand{
-      display:flex;
-      gap:10px;
-      overflow-x:auto;
+    /* Ensure the hand/unwanted strips can scroll horizontally */
+    #hand, .peekStrip {
+      overflow-x: auto;
+      overflow-y: hidden;
       -webkit-overflow-scrolling: touch;
-      padding:6px 2px 10px;
+      touch-action: pan-x;
+      scroll-behavior: smooth;
+      scrollbar-width: none;
     }
-    #hand::-webkit-scrollbar{display:none;}
+    #hand::-webkit-scrollbar, .peekStrip::-webkit-scrollbar { display: none; }
 
-    /* Meld strip */
-    .meldTap{
-      display:flex;gap:10px;overflow-x:auto;
-      -webkit-overflow-scrolling:touch;
-      padding:6px 2px 10px;
-      border-radius:14px;
-      border:1px solid rgba(255,255,255,.10);
-      background:rgba(0,0,0,.10);
-      cursor:pointer;
-    }
-    .meldTap::-webkit-scrollbar{display:none;}
-    .meldTap.active{
-      border-color:rgba(111,214,255,.45);
-      box-shadow:0 0 0 3px rgba(111,214,255,.10);
-    }
-
-    /* Playing cards */
-    .card{
-      width:72px;height:102px;border-radius:16px;
-      border:1px solid rgba(0,0,0,.10);
-      background:rgba(255,255,255,.94);
-      box-shadow:0 12px 34px rgba(0,0,0,.35), 0 0 18px rgba(111,214,255,.08);
-      color:#101018; position:relative; overflow:hidden;
-      user-select:none; cursor:pointer; flex:0 0 auto;
-    }
-    .card::before{
-      content:"";
-      position:absolute; inset:-30% -30%;
-      background:
-        radial-gradient(circle at 30% 20%, rgba(111,214,255,.18), transparent 55%),
-        linear-gradient(120deg, rgba(255,255,255,.35), transparent 45%);
-      transform: rotate(18deg);
-      pointer-events:none;
-    }
-    .card.red{color:#c0172c;}
-    .card.black{color:#101018;}
-    .card.sel{outline:3px solid rgba(111,214,255,.65); transform: translateY(-2px);}
-
-    .corner{position:absolute;font-weight:900;font-size:14px;line-height:1.0;display:flex;flex-direction:column;gap:3px;}
-    .tl{top:8px;left:8px;}
-    .br{bottom:8px;right:8px;transform:rotate(180deg);}
-    .pip{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font-size:28px;font-weight:900;opacity:.88;}
-
-    /* Deck stack (shrinks based on cards left) */
-    .deckStack{
-      width:78px;height:110px;margin:8px auto 0;
-      position:relative;cursor:pointer;user-select:none;
-    }
-    .deckStack .back{
-      position:absolute;inset:0;
-      border-radius:16px;
-      border:1px solid rgba(255,255,255,.20);
-      background: linear-gradient(180deg, rgba(111,214,255,.20), rgba(0,0,0,.35));
-      box-shadow:0 12px 28px rgba(0,0,0,.45), 0 0 18px rgba(111,214,255,.12);
-    }
-    .deckStack .label{
-      position:absolute;inset:0;
-      display:flex;align-items:center;justify-content:center;
-      font-weight:900;color:rgba(242,243,255,.92);
-      text-shadow:0 0 14px rgba(111,214,255,.18);
-    }
-
-    /* Unwanted: top card shown, tap to open peek strip */
-    .hint{font-size:12px;color:rgba(242,243,255,.72);margin-top:8px;}
-    .peekWrap{margin-top:10px;}
-    .peekStrip{
-      display:flex;gap:10px;
-      overflow-x:auto;-webkit-overflow-scrolling:touch;
-      padding:10px 6px;
-      scroll-snap-type:x mandatory;
-      scroll-padding:40px;
-      border-radius:14px;
-      border:1px solid rgba(255,255,255,.12);
-      background:rgba(0,0,0,.14);
-    }
-    .peekStrip::-webkit-scrollbar{display:none;}
-    .peekCard{
-      scroll-snap-align:center;
-      flex:0 0 auto;
-      transform:scale(.92);
-      opacity:.78;
-      transition:transform .12s ease, opacity .12s ease, box-shadow .12s ease;
-    }
-    .peekCard.active{
-      transform:scale(1.02);
-      opacity:1;
-      box-shadow:0 0 18px rgba(111,214,255,.12);
-    }
-
-    .btnRow{display:flex;gap:10px;}
-    .btnRow .btn{flex:1;}
-    .note{font-size:12px;color:rgba(242,243,255,.72);}
-
-    @media (max-width:360px){
-      .card{width:66px;height:94px;}
-      .deckStack{width:72px;height:104px;}
-    }
+    /* Prevent browser zoom/select weirdness */
+    .card { -webkit-tap-highlight-color: transparent; user-select: none; }
+    button, input { font-size: 16px; } /* stops iOS zoom on focus */
   </style>
 </head>
+
 <body>
-  <div class="bg"></div>
   <div id="app"></div>
-  <script src="practice.js"></script>
+
+  <!-- Practice mode logic -->
+  <script src="./practice.js"></script>
 </body>
 </html>
