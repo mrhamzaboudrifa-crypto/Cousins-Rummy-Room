@@ -1,198 +1,339 @@
-/* Cousins Rummy Room — Global Styles (Mobile-first, iPhone + Android friendly) */
+/* ===== Cousins Rummy Room — Mobile App Layout (ONE SCREEN) ===== */
 
 :root{
-  --bg0:#05050c;
-  --bg1:#090917;
-  --glass: rgba(255,255,255,.10);
-  --glass2: rgba(0,0,0,.25);
-  --stroke: rgba(255,255,255,.14);
-  --text: rgba(242,243,255,.95);
-  --muted: rgba(242,243,255,.70);
-  --cyan: rgba(111,214,255,.95);
-  --cyanGlow: rgba(111,214,255,.28);
-  --pink: rgba(255,122,170,.92);
-  --pinkGlow: rgba(255,78,106,.22);
-  --shadow: rgba(0,0,0,.45);
+  --panel: rgba(10,14,22,.55);
+  --stroke: rgba(160,210,255,.22);
+  --text: rgba(240,248,255,.92);
+  --muted: rgba(240,248,255,.62);
+  --danger: #ff5b5b;
+
+  /* Responsive card size */
+  --card-w: clamp(44px, 12vw, 72px);
+  --card-h: calc(var(--card-w) * 1.35);
+  --gap: 10px;
 }
 
-/* --- Hard reset / layout guarantees --- */
-*{ box-sizing:border-box; }
+*{ box-sizing:border-box; -webkit-tap-highlight-color: transparent; }
 html, body{
-  width:100%;
-  height:100%;
   margin:0;
   padding:0;
-}
-body{
-  color:var(--text);
-  background: radial-gradient(1200px 900px at 30% 20%, rgba(255,140,90,.20), transparent 55%),
-              radial-gradient(900px 700px at 65% 35%, rgba(111,214,255,.18), transparent 58%),
-              linear-gradient(180deg, var(--bg0), var(--bg1));
-  font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial;
-  overflow-x:hidden;                 /* prevents sideways shifting */
-  min-height:100vh;
-
-  /* iPhone notch safe areas */
-  padding: env(safe-area-inset-top)
-           env(safe-area-inset-right)
-           env(safe-area-inset-bottom)
-           env(safe-area-inset-left);
-}
-
-/* Background layer (does not affect layout) */
-.bg{
-  position:fixed;
-  inset:0;
-  width:100%;
   height:100%;
-  z-index:-1;
-  pointer-events:none;
-  background:
-    radial-gradient(1200px 900px at 20% 15%, rgba(255,150,80,.20), transparent 58%),
-    radial-gradient(900px 700px at 70% 35%, rgba(111,214,255,.15), transparent 60%),
-    linear-gradient(180deg, rgba(0,0,0,.35), rgba(0,0,0,.55));
-  filter:saturate(1.15) contrast(1.05);
+  background:#000;
+  color:var(--text);
+  font-family: ui-sans-serif, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Arial;
+  overflow:hidden; /* stop page scrolling */
 }
 
-/* --- Center the app on every phone size --- */
+/* dynamic viewport fixes iPhone Safari */
 .safe{
-  width:100%;
-  min-height:100vh;
+  height:100dvh;
+  width:100vw;
+  overflow:hidden;
   display:flex;
-  justify-content:center;     /* centers horizontally */
-  align-items:flex-start;     /* top aligned like an app */
-  padding:16px;               /* breathing room */
+  justify-content:center;
+  align-items:stretch;
+  background:
+    radial-gradient(1200px 800px at 20% 10%, rgba(255,140,80,.22), transparent 60%),
+    radial-gradient(900px 700px at 70% 40%, rgba(80,180,255,.18), transparent 60%),
+    radial-gradient(1200px 900px at 40% 90%, rgba(40,255,180,.08), transparent 60%),
+    linear-gradient(180deg, rgba(6,8,14,.86), rgba(6,8,14,.92));
 }
 
-/* This is the “app container” */
 .shell{
-  width:100%;
-  max-width:520px;            /* phone-like width */
-  margin:0 auto;
-  padding:0;
+  width:min(980px, 100vw);
+  height:100%;
+  padding:12px;
+  overflow:hidden;
+  display:flex;
+  flex-direction:column;
+  gap:12px;
 }
 
-/* --- Typography / neon title --- */
-.title{
-  font-size:34px;
-  font-weight:900;
-  letter-spacing:.3px;
-  text-shadow: 0 12px 40px rgba(0,0,0,.45);
+/* header */
+.hdr{
+  display:flex;
+  justify-content:space-between;
+  align-items:flex-start;
+  gap:12px;
 }
-.subtitle{
+.brand .title{
   font-size:28px;
   font-weight:900;
-  color: rgba(190,240,255,.92);
-  text-shadow:
-    0 0 12px var(--cyanGlow),
-    0 18px 50px rgba(0,0,0,.40);
+  letter-spacing:.5px;
+  text-shadow: 0 0 22px rgba(255,155,105,.35);
+}
+.brand .subtitle{
+  font-size:34px;
+  font-weight:900;
+  color:rgba(160,220,255,.95);
+  text-shadow: 0 0 26px rgba(100,200,255,.28);
   margin-top:2px;
 }
 .underline{
+  width:220px;
   height:4px;
-  width:160px;
   border-radius:999px;
-  margin:10px 0 16px;
-  background: linear-gradient(90deg, rgba(111,214,255,1), rgba(111,214,255,.2));
-  box-shadow: 0 0 18px rgba(111,214,255,.25);
+  background: linear-gradient(90deg, rgba(110,220,255,.0), rgba(110,220,255,.9), rgba(110,220,255,.0));
+  box-shadow: 0 0 20px rgba(110,220,255,.45);
+  margin-top:8px;
+}
+.exitMini{
+  padding:8px 12px;
+  border-radius:12px;
+  border:1px solid var(--stroke);
+  background: rgba(0,0,0,.25);
+  box-shadow: 0 0 18px rgba(0,0,0,.35);
+  user-select:none;
 }
 
-.small{ color:var(--muted); font-size:12px; }
-b{ color: rgba(255,255,255,.95); }
-
-/* --- Panels / glass --- */
-.panel{
-  background: linear-gradient(180deg, rgba(255,255,255,.10), rgba(0,0,0,.20));
-  border: 1px solid var(--stroke);
-  border-radius: 18px;
-  padding: 14px;
-  margin: 12px 0;
-  box-shadow:
-    0 14px 40px rgba(0,0,0,.40),
-    0 0 18px rgba(111,214,255,.10);
-  backdrop-filter: blur(12px);
-  -webkit-backdrop-filter: blur(12px);
-}
-
-/* Rows */
-.row{
+/* turn banner */
+.turnBanner{
   display:flex;
   justify-content:space-between;
   align-items:center;
+  padding:10px 12px;
+  border-radius:16px;
+  background: var(--panel);
+  border:1px solid var(--stroke);
+  box-shadow: 0 0 26px rgba(0,0,0,.35);
+}
+.turnBanner .muted{ color:var(--muted); font-size:12px; }
+.danger{ color:var(--danger); font-weight:900; }
+
+/* panel */
+.panel{
+  background: var(--panel);
+  border:1px solid var(--stroke);
+  border-radius:18px;
+  box-shadow: 0 0 26px rgba(0,0,0,.35);
+  overflow:hidden;
+}
+
+/* ===== game area is fixed height and NEVER makes the page scroll ===== */
+.gameArea{
+  flex:1;
+  min-height:0; /* key to allow internal scrolling */
+  padding:12px;
+  display:flex;
+  flex-direction:column;
+  gap:12px;
+  overflow:hidden;
+}
+
+/* opponents row */
+.seatRow{
+  display:flex;
+  gap:10px;
+  overflow-x:auto;
+  -webkit-overflow-scrolling: touch;
+  padding-bottom:4px;
+}
+.seatBox{
+  min-width:180px;
+  border-radius:16px;
+  padding:10px;
+  background: rgba(0,0,0,.22);
+  border:1px solid rgba(160,210,255,.16);
+}
+.seatBox b{ font-size:14px; }
+.small{ font-size:12px; color:var(--muted); }
+.activeTurn{
+  box-shadow: 0 0 0 2px rgba(120,210,255,.45), 0 0 28px rgba(120,210,255,.16);
+}
+
+/* deck + unwanted area */
+.centerRow{
+  display:grid;
+  grid-template-columns: 1fr 1fr;
+  gap:12px;
+  min-height:0;
+}
+.pileBox{
+  border-radius:16px;
+  padding:10px;
+  background: rgba(0,0,0,.22);
+  border:1px solid rgba(160,210,255,.16);
+  overflow:hidden;
+}
+
+/* deck stack with real-ish back design */
+.deckStack{
+  position:relative;
+  width: calc(var(--card-w) + 18px);
+  height: calc(var(--card-h) + 18px);
+  margin:10px auto 6px;
+}
+.back{
+  position:absolute;
+  inset:0;
+  border-radius:14px;
+  border:1px solid rgba(255,255,255,.18);
+  box-shadow: 0 0 28px rgba(0,0,0,.35);
+  background:
+    radial-gradient(circle at 30% 30%, rgba(255,255,255,.10), transparent 60%),
+    linear-gradient(135deg, rgba(80,160,255,.35), rgba(40,255,200,.18)),
+    repeating-linear-gradient(45deg, rgba(255,255,255,.10) 0 6px, rgba(255,255,255,.02) 6px 12px);
+}
+.deckStack .label{
+  position:absolute;
+  left:50%;
+  top:50%;
+  transform:translate(-50%,-50%);
+  font-weight:900;
+  letter-spacing:1px;
+  opacity:.85;
+}
+
+/* unwanted top card */
+.hint{ font-size:11px; color:var(--muted); text-align:center; margin-top:6px; }
+.peekWrap{
+  margin-top:10px;
+  overflow:hidden;
+}
+.peekStrip{
+  display:flex;
+  gap:8px;
+  overflow-x:auto;
+  -webkit-overflow-scrolling: touch;
+  padding:6px 2px 8px;
+}
+.peekCard{
+  flex:0 0 auto;
+  opacity:.85;
+  transform: scale(.94);
+}
+.peekCard.active{
+  opacity:1;
+  transform: scale(1);
+  filter: drop-shadow(0 0 10px rgba(120,210,255,.20));
+}
+
+/* cards */
+.card{
+  width: var(--card-w);
+  height: var(--card-h);
+  border-radius:14px;
+  background: rgba(255,255,255,.96);
+  border:1px solid rgba(0,0,0,.10);
+  position:relative;
+  overflow:hidden;
+  box-shadow: 0 10px 22px rgba(0,0,0,.25);
+  user-select:none;
+}
+.card::before{
+  content:"";
+  position:absolute;
+  inset:0;
+  background: radial-gradient(circle at 20% 20%, rgba(255,255,255,.70), transparent 45%);
+  opacity:.85;
+}
+.card.red{ color:#d81e2f; }
+.card.black{ color:#111; }
+
+.corner{
+  position:absolute;
+  font-weight:900;
+  font-size:12px;
+  line-height:1.05;
+}
+.corner.tl{ top:6px; left:6px; }
+.corner.br{ bottom:6px; right:6px; transform: rotate(180deg); }
+
+.pip{
+  position:absolute;
+  left:50%;
+  top:50%;
+  transform:translate(-50%,-50%);
+  font-size:28px;
+  opacity:.95;
+}
+
+/* selected card */
+.card.sel{
+  outline:2px solid rgba(120,210,255,.9);
+  box-shadow: 0 0 0 2px rgba(120,210,255,.35), 0 12px 26px rgba(0,0,0,.30);
+  transform: translateY(-4px);
+}
+
+/* buttons */
+.btnRow{
+  display:flex;
   gap:10px;
 }
-
-/* Inputs */
-.input{
-  width:100%;
-  padding:12px 12px;
-  border-radius:14px;
-  border: 1px solid var(--stroke);
-  background: rgba(0,0,0,.20);
-  color: rgba(255,255,255,.92);
-  outline:none;
-}
-.input:focus{
-  border-color: rgba(111,214,255,.55);
-  box-shadow: 0 0 0 3px rgba(111,214,255,.14);
-}
-
-/* Buttons */
 .btn{
   width:100%;
-  padding:12px 14px;
-  border-radius:16px;
-  border: 1px solid rgba(255,255,255,.16);
-  background: rgba(0,0,0,.22);
-  color: rgba(255,255,255,.92);
-  font-weight:900;
-  letter-spacing:.2px;
-  cursor:pointer;
-  box-shadow: 0 10px 26px rgba(0,0,0,.35);
-  transition: transform .08s ease, box-shadow .18s ease, border-color .18s ease;
+  padding:10px 12px;
+  border-radius:14px;
+  border:1px solid rgba(255,255,255,.14);
+  background: rgba(0,0,0,.25);
+  color:var(--text);
+  font-weight:800;
 }
-.btn:active{ transform: translateY(1px) scale(.99); }
-.btn:hover{
-  border-color: rgba(111,214,255,.28);
-  box-shadow: 0 14px 34px rgba(0,0,0,.45), 0 0 16px rgba(111,214,255,.10);
+.btn.cyan{
+  border:1px solid rgba(120,210,255,.40);
+  box-shadow: 0 0 18px rgba(120,210,255,.16);
 }
 .btn:disabled{
   opacity:.45;
-  cursor:not-allowed;
-  box-shadow:none;
 }
 
-.btn.cyan{
-  background: linear-gradient(180deg, rgba(111,214,255,.35), rgba(0,0,0,.22));
-  border-color: rgba(111,214,255,.35);
-  box-shadow:
-    0 14px 34px rgba(0,0,0,.45),
-    0 0 18px rgba(111,214,255,.16);
-}
-
-/* Lists */
-.list{
-  margin-top:10px;
-  display:flex;
-  flex-direction:column;
-  gap:10px;
-}
-.item{
-  padding:10px 12px;
-  border-radius:14px;
-  border: 1px solid rgba(255,255,255,.12);
-  background: rgba(0,0,0,.16);
-}
-
-/* Chat box */
-.chat{
-  max-height:210px;
-  overflow:auto;
-  border-radius:14px;
+/* ===== Meld tray is COLLAPSIBLE and horizontal, so no long page ===== */
+.meldTray{
+  border-radius:16px;
   padding:10px;
-  border: 1px solid rgba(255,255,255,.12);
-  background: rgba(0,0,0,.16);
+  background: rgba(0,0,0,.22);
+  border:1px solid rgba(160,210,255,.16);
+}
+.meldTrayHead{
+  display:flex;
+  justify-content:space-between;
+  align-items:center;
+}
+.meldTrayBody{
+  margin-top:8px;
+  display:flex;
+  gap:10px;
+  overflow-x:auto;
+  -webkit-overflow-scrolling: touch;
+  padding-bottom:6px;
+}
+.meldBlock{
+  flex:0 0 auto;
+  border-radius:14px;
+  padding:8px;
+  background: rgba(255,255,255,.06);
+  border:1px solid rgba(160,210,255,.12);
+}
+.meldTap.active{
+  box-shadow: 0 0 0 2px rgba(120,210,255,.45);
 }
 
-/* --- Utility (helps practice screen too) --- */
-button, input{ -webkit-tap-highlight-color: transparent; }
+/* ===== Bottom fixed “hand bar” ===== */
+.handBar{
+  border-radius:18px;
+  padding:10px;
+  background: rgba(0,0,0,.28);
+  border:1px solid rgba(160,210,255,.18);
+  overflow:hidden;
+}
+.handHead{
+  display:flex;
+  justify-content:space-between;
+  align-items:flex-end;
+}
+#hand{
+  display:flex;
+  gap:10px;
+  overflow-x:auto;
+  -webkit-overflow-scrolling: touch;
+  padding:10px 2px 6px;
+  scroll-snap-type:x mandatory;
+}
+#hand .card{ scroll-snap-align:start; }
+
+/* small screens */
+@media (max-width: 420px){
+  .brand .subtitle{ font-size:30px; }
+  .seatBox{ min-width:160px; }
+  .centerRow{ grid-template-columns: 1fr; }
+}
