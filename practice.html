@@ -7,12 +7,48 @@
   <title>Practice — Cousins Rummy Room</title>
   <link rel="stylesheet" href="style.css" />
   <style>
-    /* Mobile-fit container */
+    /* App centering */
     #app{width:100%;display:flex;justify-content:center;}
     .safe{width:100%;min-height:100vh;display:flex;justify-content:center;align-items:flex-start;padding:16px;}
     .shell{width:100%;max-width:520px;margin:0 auto;}
 
-    /* Practice UI */
+    /* Sexy header */
+    .hdr{display:flex;justify-content:space-between;align-items:flex-start;gap:10px;margin-bottom:10px;}
+    .brand{display:flex;flex-direction:column;gap:4px;}
+    .title{font-size:34px;font-weight:900;letter-spacing:.3px;}
+    .subtitle{
+      font-size:28px;font-weight:900;
+      color:rgba(190,240,255,.92);
+      text-shadow:0 0 12px rgba(111,214,255,.25), 0 18px 50px rgba(0,0,0,.40);
+      margin-top:2px;
+    }
+    .underline{
+      height:4px;width:180px;border-radius:999px;margin:10px 0 2px;
+      background:linear-gradient(90deg, rgba(111,214,255,1), rgba(111,214,255,.2));
+      box-shadow:0 0 18px rgba(111,214,255,.25);
+    }
+    .exitMini{
+      padding:10px 12px;border-radius:14px;
+      border:1px solid rgba(255,255,255,.14);
+      background:rgba(0,0,0,.16);
+      font-weight:900;cursor:pointer;user-select:none;
+    }
+
+    /* Turn banner */
+    .turnBanner{
+      margin-top:10px;
+      padding:12px 12px;
+      border-radius:16px;
+      border:1px solid rgba(255,255,255,.14);
+      background:linear-gradient(180deg, rgba(111,214,255,.14), rgba(0,0,0,.18));
+      box-shadow:0 12px 30px rgba(0,0,0,.35), 0 0 18px rgba(111,214,255,.12);
+      display:flex;justify-content:space-between;align-items:center;gap:10px;
+      font-weight:900;
+    }
+    .turnBanner .muted{font-weight:800;color:rgba(242,243,255,.72);font-size:12px;}
+    .danger{color:#ffd6dd;text-shadow:0 0 14px rgba(255,78,106,.25);}
+
+    /* Setup UI */
     .grid{display:flex;flex-direction:column;gap:12px;}
     .pills{display:flex;gap:10px;flex-wrap:wrap;}
     .pill{
@@ -21,11 +57,9 @@
       background:rgba(0,0,0,.16);
       font-weight:900;cursor:pointer;
     }
-    .pill.active{
-      outline:2px solid rgba(111,214,255,.65);
-      box-shadow:0 0 16px rgba(111,214,255,.18);
-    }
+    .pill.active{outline:2px solid rgba(111,214,255,.65);box-shadow:0 0 16px rgba(111,214,255,.18);}
 
+    /* Table / seats */
     .gameArea{display:flex;flex-direction:column;gap:10px;}
     .seatRow{display:flex;justify-content:space-between;gap:10px;flex-wrap:wrap;}
     .seatBox{
@@ -33,6 +67,11 @@
       background:rgba(0,0,0,.18);
       border:1px solid rgba(255,255,255,.14);
       border-radius:16px;padding:10px;
+      transition: box-shadow .15s ease, border-color .15s ease;
+    }
+    .seatBox.activeTurn{
+      border-color:rgba(111,214,255,.55);
+      box-shadow:0 0 0 3px rgba(111,214,255,.12), 0 0 18px rgba(111,214,255,.10);
     }
 
     .centerRow{display:flex;gap:10px;justify-content:space-between;}
@@ -43,15 +82,14 @@
       border-radius:16px;padding:10px;text-align:center;
     }
 
-    .hand{
-      display:flex;
-      gap:10px;
-      overflow-x:auto;
-      -webkit-overflow-scrolling: touch;
+    /* Hands / meld rows */
+    .handRow{
+      display:flex;gap:10px;overflow-x:auto;
+      -webkit-overflow-scrolling:touch;
       padding:6px 2px 10px;
     }
 
-    /* Proper playing-card look */
+    /* Playing cards */
     .card{
       width:72px;height:102px;border-radius:16px;
       border:1px solid rgba(0,0,0,.10);
@@ -87,22 +125,35 @@
       opacity:.88;
     }
 
-    .btnRow{display:flex;gap:10px;}
-    .btnRow .btn{flex:1;}
-    .timerBox{font-weight:900;text-align:right;}
-    .danger{color:#ffd6dd;text-shadow:0 0 14px rgba(255,78,106,.25);}
-    .note{font-size:12px;color:rgba(242,243,255,.72);}
+    /* Facedown deck stack */
+    .deckStack{
+      width:78px;height:110px;margin:8px auto 0;
+      position:relative;cursor:pointer;user-select:none;
+    }
+    .deckStack .back{
+      position:absolute;inset:0;
+      border-radius:16px;
+      border:1px solid rgba(255,255,255,.20);
+      background: linear-gradient(180deg, rgba(111,214,255,.20), rgba(0,0,0,.35));
+      box-shadow:0 12px 28px rgba(0,0,0,.45), 0 0 18px rgba(111,214,255,.12);
+    }
+    .deckStack .back:nth-child(2){ transform: translate(4px, -4px); opacity:.95; }
+    .deckStack .back:nth-child(3){ transform: translate(8px, -8px); opacity:.85; }
+    .deckStack .label{
+      position:absolute;inset:0;
+      display:flex;align-items:center;justify-content:center;
+      font-weight:900;color:rgba(242,243,255,.92);
+      text-shadow:0 0 14px rgba(111,214,255,.18);
+    }
 
-    /* --- Unwanted pile scroll-peek strip (like picture) --- */
+    /* Unwanted scroll-peek strip */
     .peekWrap{ margin-top:10px; }
     .peekStrip{
-      display:flex;
-      gap:10px;
-      overflow-x:auto;
-      -webkit-overflow-scrolling: touch;
+      display:flex;gap:10px;
+      overflow-x:auto;-webkit-overflow-scrolling:touch;
       padding:10px 6px;
-      scroll-snap-type: x mandatory;
-      scroll-padding: 40px;
+      scroll-snap-type:x mandatory;
+      scroll-padding:40px;
       border-radius:14px;
       border:1px solid rgba(255,255,255,.12);
       background: rgba(0,0,0,.14);
@@ -121,9 +172,30 @@
       box-shadow: 0 0 18px rgba(111,214,255,.12);
     }
 
-    /* keep tiny screens usable */
+    .btnRow{display:flex;gap:10px;}
+    .btnRow .btn{flex:1;}
+    .note{font-size:12px;color:rgba(242,243,255,.72);}
+    .hint{font-size:12px;color:rgba(242,243,255,.72);margin-top:8px;}
+
+    /* Meld containers (clickable to add onto) */
+    .meldGroup{margin-top:8px;}
+    .meldTap{
+      display:flex;gap:10px;overflow-x:auto;
+      -webkit-overflow-scrolling:touch;
+      padding:6px 2px 10px;
+      border-radius:14px;
+      border:1px solid rgba(255,255,255,.10);
+      background:rgba(0,0,0,.10);
+      cursor:pointer;
+    }
+    .meldTap.active{
+      border-color:rgba(111,214,255,.45);
+      box-shadow:0 0 0 3px rgba(111,214,255,.10);
+    }
+
     @media (max-width:360px){
       .card{width:66px;height:94px;}
+      .deckStack{width:72px;height:104px;}
     }
   </style>
 </head>
