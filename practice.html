@@ -7,14 +7,30 @@
   <title>Cousins Rummy Room — Practice</title>
 
   <link rel="stylesheet" href="./style.css" />
+
+  <style>
+    html, body { height:100%; margin:0; }
+    body { overflow:hidden; overscroll-behavior:none; }
+    #app { height:100dvh; width:100vw; overflow:hidden; }
+
+    /* Kill any “fighting” from the browser */
+    .hScroll {
+      overflow-x:auto;
+      overflow-y:hidden;
+      -webkit-overflow-scrolling: touch;
+      touch-action: pan-x !important;
+      scrollbar-width:none;
+    }
+    .hScroll::-webkit-scrollbar{ display:none; }
+
+    /* Prevent iOS zoom on buttons */
+    button { font-size:16px; }
+  </style>
 </head>
 
 <body class="practice">
   <div class="bg"></div>
-  <div class="safe">
-    <div id="app"></div>
-  </div>
-
+  <div id="app"></div>
   <script src="./practice.js"></script>
 </body>
 </html>
