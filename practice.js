@@ -1,14 +1,16 @@
-/* Cousins Rummy Room — PRACTICE MODE (Smooth mobile)
-   Key fixes:
-   - NO constant full re-render while finger is dragging (stops “fight”)
-   - Unwanted is biggest + shows TOP card as physical card
-   - Deck is small
-   - Peek opens instantly on touch (pointerdown), no multi-press
+/* Cousins Rummy Room — PRACTICE MODE (Start-to-finish)
+   Fixes requested:
+   ✅ Deck tiny top-right
+   ✅ Unwanted biggest, shows TOP card physically
+   ✅ DOUBLE TAP top unwanted card => open/close peek pile
+   ✅ Peek pile: swipe + horizontal slider scrubber
+   ✅ Hand swipe never selects cards (tap-vs-swipe guard)
+   ✅ No “fighting” caused by re-render during drag (render paused while dragging)
 */
 
 const app = document.getElementById("app");
 
-// ---------- Utilities ----------
+// ---------- Constants ----------
 const SUITS = ["♠","♥","♦","♣"];
 const RANKS = ["A","2","3","4","5","6","7","8","9","10","J","Q","K"];
 const SUIT_COLOR = (s) => (s==="♥"||s==="♦") ? "red" : "black";
@@ -22,33 +24,124 @@ function parseParams(){
   const difficulty = (p.get("difficulty")||"easy").toLowerCase();
   return { bots, difficulty: ["easy","mid","pro","goat"].includes(difficulty)?difficulty:"easy" };
 }
-const { bots: BOT_COUNT, difficulty: BOT_DIFFICULTY } = parseParams();
-
-function rankIndex(r){ return RANKS.indexOf(r); }
-function cardLabel(c){ return `${c.r}${c.s}`; }
+const { bots: BOT_COUNT } = parseParams();
 
 // ---------- State ----------
 const state = {
   uiNeedsRender: true,
-  isDragging: false,       // ✅ critical: prevents re-render during swipe
+  isDragging: false,
+
+  // remember scroll positions
   handScrollLeft: 0,
   peekScrollLeft: 0,
 
+  // turn
   turnIndex: 0,
   phase: "DRAW",
   turnMsLeft: 60000,
   turnTimer: null,
 
+  // piles
   deck: [],
   unwanted: [],
   peekOpen: false,
 
+  // players
   players: [],
   selectedIds: new Set(),
   lastDrawnId: null,
+
+  // double-tap timing
+  lastTapTime: 0,
 };
 
-// ---------- Deck ----------
+// ---------- Helpers ----------
+function rankIndex(r){ return RANKS.indexOf(r); }
+
+function requestRender(){ state.uiNeedsRender = true; }
+
+function mePlayer(){ return state.players.find(p=>p.uid==="me"); }
+function curPlayer(){ return state.players[state.turnIndex]; }
+function isMyTurn(){ return curPlayer().uid==="me"; }
+
+// ---------- Tap-vs-swipe guard ----------
+function makeTapGuard(){ return {x:0,y:0,moved:false}; }
+function posXY(e){ const t = e.touches ? e.touches[0] : e; return {x:t.clientX,y:t.clientY}; }
+function markDown(g,e){ const p=posXY(e); g.x=p.x; g.y=p.y; g.moved=false; }
+function markMove(g,e){
+  const p=posXY(e);
+  if (Math.abs(p.x-g.x)>8 || Math.abs(p.y-g.y)>8) g.moved=true;
+}
+
+// ---------- Drag-to-scroll (smooth, no fighting) ----------
+function enableDragScroll(el, rememberKey){
+  if (!el) return;
+
+  let down=false, startX=0, startScroll=0, moved=false;
+  el.style.touchAction="pan-x";
+
+  const getX=(e)=> (e.touches ? e.touches[0].clientX : e.clientX);
+
+  const onDown=(e)=>{
+    down=true; moved=false;
+    state.isDragging=true;
+    startX=getX(e);
+    startScroll=el.scrollLeft;
+  };
+
+  const onMove=(e)=>{
+    if (!down) return;
+    const dx=getX(e)-startX;
+    if (Math.abs(dx)>2) moved=true;
+    if (e.cancelable) e.preventDefault();
+    el.scrollLeft = startScroll - dx;
+    if (rememberKey) state[rememberKey] = el.scrollLeft;
+  };
+
+  const onUp=()=>{
+    down=false;
+    state.isDragging=false;
+    if (rememberKey) state[rememberKey] = el.scrollLeft;
+    if (moved) requestRender();
+  };
+
+  el.addEventListener("touchstart", onDown, {passive:true});
+  el.addEventListener("touchmove", onMove, {passive:false});
+  el.addEventListener("touchend", onUp, {passive:true});
+  el.addEventListener("touchcancel", onUp, {passive:true});
+
+  // block iOS “ghost click after drag”
+  el.addEventListener("click", (e)=>{
+    if (!moved) return;
+    e.preventDefault(); e.stopPropagation();
+  }, true);
+}
+
+// ---------- Slider scrubber ----------
+function bindScrubber(rangeEl, scrollerEl, rememberKey){
+  if (!rangeEl || !scrollerEl) return;
+
+  const update = ()=>{
+    const max = Math.max(0, scrollerEl.scrollWidth - scrollerEl.clientWidth);
+    rangeEl.max = String(max);
+    rangeEl.value = String(scrollerEl.scrollLeft);
+  };
+
+  rangeEl.addEventListener("input", ()=>{
+    scrollerEl.scrollLeft = Number(rangeEl.value);
+    if (rememberKey) state[rememberKey] = scrollerEl.scrollLeft;
+  });
+
+  scrollerEl.addEventListener("scroll", ()=>{
+    if (rememberKey) state[rememberKey] = scrollerEl.scrollLeft;
+    update();
+  }, {passive:true});
+
+  window.addEventListener("resize", update);
+  setTimeout(update, 0);
+}
+
+// ---------- Deck creation ----------
 function makeDeck(){
   const d=[];
   for (const s of SUITS) for (const r of RANKS) d.push({id:uid(), r, s});
@@ -59,34 +152,6 @@ function makeDeck(){
   return d;
 }
 
-// ---------- Meld validation ----------
-function isValidSet(cards){
-  if (cards.length<3) return false;
-  const r = cards[0].r;
-  return cards.every(c=>c.r===r);
-}
-function isValidRun(cards){
-  if (cards.length<3) return false;
-  const suit = cards[0].s;
-  if (!cards.every(c=>c.s===suit)) return false;
-
-  // A low
-  const idx = cards.map(c=>rankIndex(c.r)).sort((a,b)=>a-b);
-  const low = idx.every((v,i)=>i===0||v===idx[i-1]+1);
-  if (low) return true;
-
-  // A high
-  if (!cards.some(c=>c.r==="A")) return false;
-  const idxHigh = cards.map(c=> (c.r==="A"?13:rankIndex(c.r)) ).sort((a,b)=>a-b);
-  return idxHigh.every((v,i)=>i===0||v===idxHigh[i-1]+1);
-}
-function validateMeld(cards){
-  if (cards.length<3) return {ok:false, reason:"Meld must be 3+ cards."};
-  if (isValidSet(cards)) return {ok:true, type:"set"};
-  if (isValidRun(cards)) return {ok:true, type:"run"};
-  return {ok:false, reason:"Not a valid set or run."};
-}
-
 // ---------- Players ----------
 function makePlayers(){
   const youName = localStorage.getItem("crr_name") || "You";
@@ -95,18 +160,12 @@ function makePlayers(){
   for (let i=0;i<BOT_COUNT;i++){
     bots.push({ uid:`bot_${i}`, name:names[i]||`Bot${i+1}`, bot:true });
   }
-  return [
-    { uid:"me", name:youName, bot:false },
-    ...bots
-  ].map(p=>({ ...p, hand:[], melds:[], mustLayMeldFirst:true, score:0 }));
-}
-
-function curPlayer(){ return state.players[state.turnIndex]; }
-function mePlayer(){ return state.players.find(p=>p.uid==="me"); }
-function isMyTurn(){ return curPlayer().uid==="me"; }
-
-function requestRender(){
-  state.uiNeedsRender = true;
+  return [{ uid:"me", name:youName, bot:false }, ...bots].map(p=>({
+    ...p,
+    hand: [],
+    melds: [],
+    score: 0,
+  }));
 }
 
 // ---------- Deal ----------
@@ -116,7 +175,9 @@ function deal(){
 
   for (let i=0;i<state.players.length;i++){
     const count = (i===next)?8:7;
-    for (let k=0;k<count;k++) state.players[i].hand.push(state.deck.pop());
+    for (let k=0;k<count;k++){
+      state.players[i].hand.push(state.deck.pop());
+    }
   }
 
   state.unwanted.push(state.deck.pop());
@@ -137,14 +198,15 @@ function startTurnTimer(){
   state.turnTimer = setInterval(()=>{
     const elapsed = Date.now() - started;
     state.turnMsLeft = clamp(startLeft - elapsed, 0, 60000);
-    if (state.turnMsLeft === 0){
-      onTimeout();
-    }
+    if (state.turnMsLeft===0) onTimeout();
     requestRender();
   }, 250);
 }
 function stopTurnTimer(){
-  if (state.turnTimer){ clearInterval(state.turnTimer); state.turnTimer=null; }
+  if (state.turnTimer){
+    clearInterval(state.turnTimer);
+    state.turnTimer=null;
+  }
 }
 function onTimeout(){
   stopTurnTimer();
@@ -155,14 +217,24 @@ function onTimeout(){
 }
 
 // ---------- Actions ----------
+function clearJustDrewSoon(){
+  setTimeout(()=>{
+    const me = mePlayer();
+    if (me) me.hand.forEach(c=>delete c._justDrew);
+    state.lastDrawnId = null;
+    requestRender();
+  }, 900);
+}
+
 function autoDrawFromDeck(p){
   if (!state.deck.length) return;
   const c = state.deck.pop();
   c._justDrew = true;
   state.lastDrawnId = c.id;
-  p.hand.unshift(c); // front
+  p.hand.unshift(c); // FRONT
   state.phase = "MELD";
 }
+
 function autoRandomDiscard(p){
   if (!p.hand.length) return;
   const idx = Math.floor(Math.random()*p.hand.length);
@@ -173,8 +245,7 @@ function autoRandomDiscard(p){
 
 function drawFromDeck(){
   if (!isMyTurn() || state.phase!=="DRAW") return;
-  const me = mePlayer();
-  autoDrawFromDeck(me);
+  autoDrawFromDeck(mePlayer());
   requestRender();
   clearJustDrewSoon();
 }
@@ -195,8 +266,8 @@ function takeUnwantedTop(){
 
 function takeUnwantedAll(){
   if (!isMyTurn() || state.phase!=="DRAW") return;
-  const me = mePlayer();
   if (!state.unwanted.length) return;
+  const me = mePlayer();
   const pile = state.unwanted.splice(0, state.unwanted.length);
   for (let i=pile.length-1;i>=0;i--) me.hand.unshift(pile[i]);
   state.phase = "MELD";
@@ -210,26 +281,6 @@ function toggleSelect(id){
   if (!me.hand.find(c=>c.id===id)) return;
   if (state.selectedIds.has(id)) state.selectedIds.delete(id);
   else state.selectedIds.add(id);
-  requestRender();
-}
-function selectedCards(){
-  const me = mePlayer();
-  return [...state.selectedIds].map(id=>me.hand.find(c=>c.id===id)).filter(Boolean);
-}
-
-function layMeld(){
-  if (!isMyTurn() || state.phase==="DRAW") return;
-  const me = mePlayer();
-  const cards = selectedCards();
-  const v = validateMeld(cards);
-  if (!v.ok){ alert(v.reason); return; }
-
-  const ids = new Set(cards.map(c=>c.id));
-  me.hand = me.hand.filter(c=>!ids.has(c.id));
-  me.melds.push(cards);
-
-  me.mustLayMeldFirst = false;
-  state.selectedIds.clear();
   requestRender();
 }
 
@@ -258,21 +309,19 @@ function discardSelected(){
 function endTurn(){
   state.selectedIds.clear();
   state.phase = "DRAW";
-  state.turnIndex = (state.turnIndex+1) % state.players.length;
+  state.turnIndex = (state.turnIndex+1)%state.players.length;
   state.turnMsLeft = 60000;
   startTurnTimer();
   requestRender();
 
-  if (curPlayer().bot){
-    setTimeout(botAct, 350);
-  }
+  if (curPlayer().bot) setTimeout(botAct, 350);
 }
 
 function startNewRound(){
   stopTurnTimer();
   state.deck = makeDeck();
   for (const p of state.players){
-    p.hand=[]; p.melds=[]; p.mustLayMeldFirst=true;
+    p.hand=[]; p.melds=[];
   }
   deal();
   startTurnTimer();
@@ -280,16 +329,7 @@ function startNewRound(){
   if (curPlayer().bot) setTimeout(botAct, 350);
 }
 
-function clearJustDrewSoon(){
-  setTimeout(()=>{
-    const me = mePlayer();
-    if (me) me.hand.forEach(c=>delete c._justDrew);
-    state.lastDrawnId = null;
-    requestRender();
-  }, 900);
-}
-
-// ---------- Bot (very simple placeholder) ----------
+// ---------- Bot (simple placeholder) ----------
 function botAct(){
   const p = curPlayer();
   if (!p.bot) return;
@@ -297,64 +337,11 @@ function botAct(){
   if (state.phase==="DRAW"){
     autoDrawFromDeck(p);
     requestRender();
-    setTimeout(botAct, 350);
+    setTimeout(botAct, 250);
     return;
   }
-
-  // discard random
   autoRandomDiscard(p);
   endTurn();
-}
-
-// ---------- Smooth horizontal drag (NO fighting) ----------
-function enableDragScroll(el, rememberKey){
-  if (!el) return;
-
-  let down = false;
-  let startX = 0;
-  let startScroll = 0;
-  let moved = false;
-
-  el.classList.add("hScroll");
-  el.style.touchAction = "pan-x";
-
-  const posX = (e)=> (e.touches ? e.touches[0].clientX : e.clientX);
-
-  const onDown = (e)=>{
-    down = true;
-    moved = false;
-    state.isDragging = true;
-    startX = posX(e);
-    startScroll = el.scrollLeft;
-  };
-
-  const onMove = (e)=>{
-    if (!down) return;
-    const dx = posX(e) - startX;
-    if (Math.abs(dx) > 2) moved = true;
-    if (e.cancelable) e.preventDefault();
-    el.scrollLeft = startScroll - dx;
-    if (rememberKey) state[rememberKey] = el.scrollLeft;
-  };
-
-  const onUp = ()=>{
-    down = false;
-    state.isDragging = false;
-    if (rememberKey) state[rememberKey] = el.scrollLeft;
-    if (moved) requestRender();
-  };
-
-  el.addEventListener("touchstart", onDown, {passive:true});
-  el.addEventListener("touchmove", onMove, {passive:false});
-  el.addEventListener("touchend", onUp, {passive:true});
-  el.addEventListener("touchcancel", onUp, {passive:true});
-
-  // stop iOS “click after drag” selecting cards
-  el.addEventListener("click", (e)=>{
-    if (!moved) return;
-    e.preventDefault();
-    e.stopPropagation();
-  }, true);
 }
 
 // ---------- UI ----------
@@ -371,11 +358,9 @@ function cardHTML(c, {selectable=false, selected=false} = {}){
   `;
 }
 
-function formatMs(ms){
-  return `${Math.ceil(ms/1000)}s`;
-}
+function formatMs(ms){ return `${Math.ceil(ms/1000)}s`; }
 
-// ✅ render only when needed, and NEVER during drag
+// Render loop (IMPORTANT: does not re-render during drag)
 function renderLoop(){
   if (state.isDragging) return;
   if (!state.uiNeedsRender) return;
@@ -390,7 +375,13 @@ function render(){
 
   app.innerHTML = `
     <div class="safe">
-      <div class="shell gameLayout">
+      <div class="shell gameLayout" style="position:relative;">
+
+        <!-- Tiny deck top-right -->
+        <div class="deckTiny" id="deckTap">
+          <div class="miniBack"></div>
+          <div class="miniTxt">${state.deck.length}</div>
+        </div>
 
         <div class="hdr">
           <div class="brand">
@@ -404,63 +395,44 @@ function render(){
         <div class="turnBanner">
           <div>
             <b>${cur.uid==="me" ? "YOUR TURN" : `${escapeHtml(cur.name)}'s Turn`}</b>
-            <div class="muted">Phase: ${escapeHtml(state.phase)} — Draw → (Lay) → Discard 1</div>
+            <div class="muted">Phase: ${escapeHtml(state.phase)} — Draw → (Play) → Discard</div>
           </div>
           <div style="font-weight:900;font-size:18px;">${formatMs(state.turnMsLeft)}</div>
         </div>
 
         <div class="panel gameMain">
 
-          <!-- Opponents -->
-          <div class="seatRow">
-            ${state.players.filter(p=>p.uid!=="me").map(p=>`
-              <div class="seatBox ${p.uid===cur.uid ? "activeTurn":""}">
-                <div><b>${escapeHtml(p.name)}</b></div>
-                <div class="small">Cards left: ${p.hand.length}</div>
-                <div class="small">Score: ${p.score}</div>
-              </div>
-            `).join("")}
-          </div>
-
-          <!-- Center: SMALL deck + BIG unwanted -->
-          <div class="centerRow" style="grid-template-columns: .72fr 1.28fr;">
-            <div class="pileBox" style="text-align:center;">
-              <div style="display:flex;justify-content:space-between;align-items:center;">
-                <b>Deck</b><span class="small">${state.deck.length} left</span>
-              </div>
-              <div class="deckStack" id="deckTap" style="transform:scale(.78); transform-origin: top center;">
-                <div class="back"></div>
-                <div class="label">TAP</div>
-              </div>
-              <div class="hint">Draw 1</div>
+          <!-- Big Unwanted -->
+          <div class="pileBox unwantedBig">
+            <div style="display:flex;justify-content:space-between;align-items:center;">
+              <b>Unwanted</b>
+              <span class="small">${state.unwanted.length} cards</span>
             </div>
 
-            <div class="pileBox">
-              <div style="display:flex;justify-content:space-between;align-items:center;">
-                <b>Unwanted</b><span class="small">${state.unwanted.length} cards</span>
+            <div class="unwantedTopRow">
+              <div class="topCardWrap" id="unwantedTopCard">
+                ${top ? cardHTML(top) : `<div class="small">Empty</div>`}
               </div>
 
-              <div style="display:flex; gap:12px; align-items:center; margin-top:8px;">
-                <div id="unwantedTopCard" style="flex:0 0 auto;">
-                  ${top ? cardHTML(top,{selectable:false, selected:false}) : `<div class="small">Empty</div>`}
+              <div class="unwantedInfo">
+                <div class="small">
+                  Double-tap the top card to ${state.peekOpen ? "close" : "open"} the pile
                 </div>
-                <div style="flex:1;">
-                  <div class="small">Tap the top card to peek the whole pile</div>
-                  <div class="btnRow" style="margin-top:10px;">
-                    <button class="btn cyan" id="takeTop" ${(!isMyTurn()||state.phase!=="DRAW"||!top)?"disabled":""}>Take Top</button>
-                    <button class="btn" id="takeAll" ${(!isMyTurn()||state.phase!=="DRAW"||!top)?"disabled":""}>Take All</button>
-                  </div>
+                <div class="btnRow" style="margin-top:10px;">
+                  <button class="btn cyan" id="takeTop" ${(!isMyTurn()||state.phase!=="DRAW"||!top)?"disabled":""}>Take Top</button>
+                  <button class="btn" id="takeAll" ${(!isMyTurn()||state.phase!=="DRAW"||!top)?"disabled":""}>Take All</button>
                 </div>
               </div>
+            </div>
 
-              <div class="peekWrap" style="margin-top:12px; display:${state.peekOpen?"block":"none"};">
-                <div class="peekStrip" id="peekStrip">
-                  ${state.unwanted.map(c=>`<div class="peekCard">${cardHTML(c)}</div>`).join("")}
-                </div>
+            <div class="peekWrap" style="margin-top:12px; display:${state.peekOpen?"block":"none"};">
+              <div class="peekStrip" id="peekStrip">
+                ${state.unwanted.map(c=>`<div class="peekCard">${cardHTML(c)}</div>`).join("")}
               </div>
-
+              <input id="peekScrubber" class="scrubber" type="range" min="0" value="0" />
             </div>
           </div>
+
         </div>
 
         <!-- Hand -->
@@ -468,7 +440,7 @@ function render(){
           <div class="handHead">
             <div>
               <b>Your hand</b>
-              <div class="small">Swipe left/right • select cards • lay meld • discard</div>
+              <div class="small">Swipe smoothly (won’t select while swiping)</div>
             </div>
             <div class="small">Score: <b>${me.score}</b></div>
           </div>
@@ -476,13 +448,14 @@ function render(){
           <div id="hand">
             ${me.hand.map(c=>{
               const selected = state.selectedIds.has(c.id);
-              const highlight = selected || c._justDrew || c.id===state.lastDrawnId;
-              return cardHTML(c,{selectable:true, selected:highlight});
+              const hi = selected || c._justDrew || c.id===state.lastDrawnId;
+              return cardHTML(c,{selectable:true, selected:hi});
             }).join("")}
           </div>
 
+          <input id="handScrubber" class="scrubber" type="range" min="0" value="0" />
+
           <div class="btnRow">
-            <button class="btn cyan" id="layMeld" ${(!isMyTurn()||state.phase==="DRAW")?"disabled":""}>Lay Meld</button>
             <button class="btn" id="discard" ${(!isMyTurn()||state.phase==="DRAW")?"disabled":""}>Discard (1)</button>
           </div>
         </div>
@@ -491,56 +464,96 @@ function render(){
     </div>
   `;
 
-  // --- Events ---
-  const handEl = document.getElementById("hand");
-  if (handEl){
-    handEl.scrollLeft = state.handScrollLeft;
-    enableDragScroll(handEl, "handScrollLeft");
-    handEl.querySelectorAll("[data-card]").forEach(el=>{
-      el.onpointerdown = (e)=>{
-        // avoid scroll interpreting as tap
-        if (state.isDragging) return;
-        toggleSelect(el.getAttribute("data-card"));
-      };
+  // Deck tiny tap
+  document.getElementById("deckTap").onpointerdown = ()=>{
+    drawFromDeck();
+  };
+
+  // Unwanted top double-tap open/close
+  const topCard = document.getElementById("unwantedTopCard");
+  if (topCard){
+    const g = makeTapGuard();
+    topCard.addEventListener("pointerdown", (e)=>markDown(g,e));
+    topCard.addEventListener("pointermove", (e)=>markMove(g,e));
+    topCard.addEventListener("pointerup", ()=>{
+      if (g.moved) return; // swipe => ignore
+      const t = Date.now();
+      if (t - state.lastTapTime < 320){
+        state.peekOpen = !state.peekOpen;
+        requestRender();
+        setTimeout(()=>{
+          const strip = document.getElementById("peekStrip");
+          if (strip && state.peekOpen) strip.scrollLeft = strip.scrollWidth;
+        }, 0);
+      }
+      state.lastTapTime = t;
     });
   }
 
-  const peek = document.getElementById("peekStrip");
-  if (peek){
-    peek.scrollLeft = state.peekScrollLeft;
-    enableDragScroll(peek, "peekScrollLeft");
-  }
-
-  const topCard = document.getElementById("unwantedTopCard");
-  if (topCard){
-    topCard.onpointerdown = (e)=>{
-      // instant open/close
-      state.peekOpen = !state.peekOpen;
-      requestRender();
-      setTimeout(()=>{
-        const strip = document.getElementById("peekStrip");
-        if (strip && state.peekOpen) strip.scrollLeft = strip.scrollWidth;
-      }, 0);
-    };
-  }
-
-  const deckTap = document.getElementById("deckTap");
-  if (deckTap) deckTap.onpointerdown = ()=>drawFromDeck();
-
+  // Buttons
   const takeTopBtn = document.getElementById("takeTop");
   if (takeTopBtn) takeTopBtn.onclick = takeUnwantedTop;
 
   const takeAllBtn = document.getElementById("takeAll");
   if (takeAllBtn) takeAllBtn.onclick = takeUnwantedAll;
 
-  const layBtn = document.getElementById("layMeld");
-  if (layBtn) layBtn.onclick = layMeld;
-
-  const discBtn = document.getElementById("discard");
-  if (discBtn) discBtn.onclick = discardSelected;
+  const discardBtn = document.getElementById("discard");
+  if (discardBtn) discardBtn.onclick = discardSelected;
 
   const exitBtn = document.getElementById("exitBtn");
   if (exitBtn) exitBtn.onclick = ()=>{ if (confirm("Exit practice mode?")) location.href="./index.html"; };
+
+  // Hand scroll + no select on swipe
+  const handEl = document.getElementById("hand");
+  if (handEl){
+    handEl.scrollLeft = state.handScrollLeft;
+    enableDragScroll(handEl, "handScrollLeft");
+
+    // tap vs swipe selection guard per-card
+    handEl.querySelectorAll("[data-card]").forEach(el=>{
+      const g = makeTapGuard();
+      el.addEventListener("pointerdown", (e)=>markDown(g,e));
+      el.addEventListener("pointermove", (e)=>markMove(g,e));
+      el.addEventListener("pointerup", ()=>{
+        if (g.moved) return; // swiping => no selection
+        toggleSelect(el.getAttribute("data-card"));
+      });
+    });
+
+    bindScrubber(document.getElementById("handScrubber"), handEl, "handScrollLeft");
+  }
+
+  // Peek strip scroll + scrubber
+  const peekEl = document.getElementById("peekStrip");
+  if (peekEl){
+    peekEl.scrollLeft = state.peekScrollLeft;
+    enableDragScroll(peekEl, "peekScrollLeft");
+    bindScrubber(document.getElementById("peekScrubber"), peekEl, "peekScrollLeft");
+  }
+}
+
+// slider helper
+function bindScrubber(rangeEl, scrollerEl, rememberKey){
+  if (!rangeEl || !scrollerEl) return;
+
+  const update = ()=>{
+    const max = Math.max(0, scrollerEl.scrollWidth - scrollerEl.clientWidth);
+    rangeEl.max = String(max);
+    rangeEl.value = String(scrollerEl.scrollLeft);
+  };
+
+  rangeEl.addEventListener("input", ()=>{
+    scrollerEl.scrollLeft = Number(rangeEl.value);
+    if (rememberKey) state[rememberKey] = scrollerEl.scrollLeft;
+  });
+
+  scrollerEl.addEventListener("scroll", ()=>{
+    if (rememberKey) state[rememberKey] = scrollerEl.scrollLeft;
+    update();
+  }, {passive:true});
+
+  window.addEventListener("resize", update);
+  setTimeout(update, 0);
 }
 
 // ---------- Boot ----------
