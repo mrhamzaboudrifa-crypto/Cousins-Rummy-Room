@@ -1,4 +1,4 @@
-/* ===== Cousins Rummy Room — Mobile App Layout (ONE SCREEN) ===== */
+/* ===== Cousins Rummy Room — CLEAN Mobile One-Screen UI ===== */
 
 :root{
   --panel: rgba(10,14,22,.55);
@@ -7,7 +7,7 @@
   --muted: rgba(240,248,255,.62);
   --danger: #ff5b5b;
 
-  /* Responsive card size */
+  /* Responsive card size (single source of truth) */
   --card-w: clamp(44px, 12vw, 72px);
   --card-h: calc(var(--card-w) * 1.35);
   --gap: 10px;
@@ -15,16 +15,30 @@
 
 *{ box-sizing:border-box; -webkit-tap-highlight-color: transparent; }
 html, body{
+  width:100%;
+  height:100%;
   margin:0;
   padding:0;
-  height:100%;
   background:#000;
   color:var(--text);
   font-family: ui-sans-serif, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Arial;
-  overflow:hidden; /* stop page scrolling */
+  overflow:hidden;              /* no page scrolling */
+  overscroll-behavior:none;
 }
 
-/* dynamic viewport fixes iPhone Safari */
+/* Optional background layer used in index.html */
+.bg{
+  position:fixed;
+  inset:0;
+  pointer-events:none;
+  background:
+    radial-gradient(1200px 800px at 20% 10%, rgba(255,140,80,.22), transparent 60%),
+    radial-gradient(900px 700px at 70% 40%, rgba(80,180,255,.18), transparent 60%),
+    radial-gradient(1200px 900px at 40% 90%, rgba(40,255,180,.08), transparent 60%),
+    linear-gradient(180deg, rgba(6,8,14,.86), rgba(6,8,14,.92));
+}
+
+/* iPhone safe areas */
 .safe{
   height:100dvh;
   width:100vw;
@@ -32,11 +46,8 @@ html, body{
   display:flex;
   justify-content:center;
   align-items:stretch;
-  background:
-    radial-gradient(1200px 800px at 20% 10%, rgba(255,140,80,.22), transparent 60%),
-    radial-gradient(900px 700px at 70% 40%, rgba(80,180,255,.18), transparent 60%),
-    radial-gradient(1200px 900px at 40% 90%, rgba(40,255,180,.08), transparent 60%),
-    linear-gradient(180deg, rgba(6,8,14,.86), rgba(6,8,14,.92));
+  padding: env(safe-area-inset-top) env(safe-area-inset-right)
+           env(safe-area-inset-bottom) env(safe-area-inset-left);
 }
 
 .shell{
@@ -47,6 +58,7 @@ html, body{
   display:flex;
   flex-direction:column;
   gap:12px;
+  margin:0 auto;
 }
 
 /* header */
@@ -86,6 +98,17 @@ html, body{
   user-select:none;
 }
 
+/* reusable panel */
+.panel{
+  background: var(--panel);
+  border:1px solid var(--stroke);
+  border-radius:18px;
+  box-shadow: 0 0 26px rgba(0,0,0,.35);
+  overflow:hidden;
+}
+
+.small{ font-size:12px; color:var(--muted); }
+
 /* turn banner */
 .turnBanner{
   display:flex;
@@ -100,19 +123,10 @@ html, body{
 .turnBanner .muted{ color:var(--muted); font-size:12px; }
 .danger{ color:var(--danger); font-weight:900; }
 
-/* panel */
-.panel{
-  background: var(--panel);
-  border:1px solid var(--stroke);
-  border-radius:18px;
-  box-shadow: 0 0 26px rgba(0,0,0,.35);
-  overflow:hidden;
-}
-
-/* ===== game area is fixed height and NEVER makes the page scroll ===== */
+/* game area (fixed one-screen) */
 .gameArea{
   flex:1;
-  min-height:0; /* key to allow internal scrolling */
+  min-height:0;
   padding:12px;
   display:flex;
   flex-direction:column;
@@ -127,7 +141,10 @@ html, body{
   overflow-x:auto;
   -webkit-overflow-scrolling: touch;
   padding-bottom:4px;
+  scrollbar-width:none;
 }
+.seatRow::-webkit-scrollbar{ display:none; }
+
 .seatBox{
   min-width:180px;
   border-radius:16px;
@@ -135,8 +152,6 @@ html, body{
   background: rgba(0,0,0,.22);
   border:1px solid rgba(160,210,255,.16);
 }
-.seatBox b{ font-size:14px; }
-.small{ font-size:12px; color:var(--muted); }
 .activeTurn{
   box-shadow: 0 0 0 2px rgba(120,210,255,.45), 0 0 28px rgba(120,210,255,.16);
 }
@@ -153,15 +168,16 @@ html, body{
   padding:10px;
   background: rgba(0,0,0,.22);
   border:1px solid rgba(160,210,255,.16);
-  overflow:hidden;
+  overflow:hidden; /* keeps unwanted strip inside */
 }
 
-/* deck stack with real-ish back design */
+/* deck stack (real-ish back) */
 .deckStack{
   position:relative;
   width: calc(var(--card-w) + 18px);
   height: calc(var(--card-h) + 18px);
   margin:10px auto 6px;
+  user-select:none;
 }
 .back{
   position:absolute;
@@ -184,29 +200,24 @@ html, body{
   opacity:.85;
 }
 
-/* unwanted top card */
+/* unwanted */
 .hint{ font-size:11px; color:var(--muted); text-align:center; margin-top:6px; }
-.peekWrap{
-  margin-top:10px;
-  overflow:hidden;
-}
+.peekWrap{ margin-top:10px; overflow:hidden; }
 .peekStrip{
   display:flex;
   gap:8px;
+  flex-wrap:nowrap;
   overflow-x:auto;
+  overflow-y:hidden;
   -webkit-overflow-scrolling: touch;
   padding:6px 2px 8px;
+  touch-action: pan-x;
+  scrollbar-width:none;
 }
-.peekCard{
-  flex:0 0 auto;
-  opacity:.85;
-  transform: scale(.94);
-}
-.peekCard.active{
-  opacity:1;
-  transform: scale(1);
-  filter: drop-shadow(0 0 10px rgba(120,210,255,.20));
-}
+.peekStrip::-webkit-scrollbar{ display:none; }
+
+.peekCard{ flex:0 0 auto; opacity:.85; transform:scale(.94); }
+.peekCard.active{ opacity:1; transform:scale(1); filter:drop-shadow(0 0 10px rgba(120,210,255,.20)); }
 
 /* cards */
 .card{
@@ -219,6 +230,7 @@ html, body{
   overflow:hidden;
   box-shadow: 0 10px 22px rgba(0,0,0,.25);
   user-select:none;
+  flex:0 0 auto;
 }
 .card::before{
   content:"";
@@ -237,7 +249,7 @@ html, body{
   line-height:1.05;
 }
 .corner.tl{ top:6px; left:6px; }
-.corner.br{ bottom:6px; right:6px; transform: rotate(180deg); }
+.corner.br{ bottom:6px; right:6px; transform:rotate(180deg); }
 
 .pip{
   position:absolute;
@@ -248,7 +260,7 @@ html, body{
   opacity:.95;
 }
 
-/* selected card */
+/* selected / highlight */
 .card.sel{
   outline:2px solid rgba(120,210,255,.9);
   box-shadow: 0 0 0 2px rgba(120,210,255,.35), 0 12px 26px rgba(0,0,0,.30);
@@ -256,10 +268,7 @@ html, body{
 }
 
 /* buttons */
-.btnRow{
-  display:flex;
-  gap:10px;
-}
+.btnRow{ display:flex; gap:10px; }
 .btn{
   width:100%;
   padding:10px 12px;
@@ -268,16 +277,15 @@ html, body{
   background: rgba(0,0,0,.25);
   color:var(--text);
   font-weight:800;
+  font-size:16px; /* prevents iOS zoom on focus */
 }
 .btn.cyan{
   border:1px solid rgba(120,210,255,.40);
   box-shadow: 0 0 18px rgba(120,210,255,.16);
 }
-.btn:disabled{
-  opacity:.45;
-}
+.btn:disabled{ opacity:.45; }
 
-/* ===== Meld tray is COLLAPSIBLE and horizontal, so no long page ===== */
+/* meld tray */
 .meldTray{
   border-radius:16px;
   padding:10px;
@@ -294,9 +302,15 @@ html, body{
   display:flex;
   gap:10px;
   overflow-x:auto;
+  overflow-y:hidden;
+  flex-wrap:nowrap;
   -webkit-overflow-scrolling: touch;
   padding-bottom:6px;
+  touch-action: pan-x;
+  scrollbar-width:none;
 }
+.meldTrayBody::-webkit-scrollbar{ display:none; }
+
 .meldBlock{
   flex:0 0 auto;
   border-radius:14px;
@@ -308,7 +322,7 @@ html, body{
   box-shadow: 0 0 0 2px rgba(120,210,255,.45);
 }
 
-/* ===== Bottom fixed “hand bar” ===== */
+/* bottom hand bar */
 .handBar{
   border-radius:18px;
   padding:10px;
@@ -324,12 +338,15 @@ html, body{
 #hand{
   display:flex;
   gap:10px;
+  flex-wrap:nowrap;
   overflow-x:auto;
+  overflow-y:hidden;
   -webkit-overflow-scrolling: touch;
   padding:10px 2px 6px;
-  scroll-snap-type:x mandatory;
+  touch-action: pan-x;
+  scrollbar-width:none;
 }
-#hand .card{ scroll-snap-align:start; }
+#hand::-webkit-scrollbar{ display:none; }
 
 /* small screens */
 @media (max-width: 420px){
@@ -337,57 +354,3 @@ html, body{
   .seatBox{ min-width:160px; }
   .centerRow{ grid-template-columns: 1fr; }
 }
-/* === MOBILE FIX PATCH (add at very bottom of style.css) === */
-* { box-sizing: border-box; }
-html, body { width: 100%; height: 100%; margin: 0; overflow-x: hidden; }
-body { overscroll-behavior: none; }
-
-/* Fill the phone screen (iPhone + Android) */
-#app, .safe { width: 100vw; max-width: 100vw; }
-.safe { min-height: 100dvh; padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left); }
-
-/* STOP the “shift to the left” caused by fixed widths/max widths */
-.shell {
-  width: min(100%, 980px) !important;
-  max-width: 100% !important;
-  margin: 0 auto !important;
-}
-
-/* Keep the whole game on ONE screen: header + main + bottom hand */
-.gameLayout {
-  height: 100dvh;
-  display: flex;
-  flex-direction: column;
-  overflow: hidden;
-}
-
-/* Middle content scrolls internally (not the entire page) */
-.gameMain {
-  flex: 1;
-  overflow: auto;
-  -webkit-overflow-scrolling: touch;
-  padding-bottom: 8px;
-}
-
-/* Hand + unwanted must scroll sideways, never wrap off-screen */
-#hand, .handStrip, .peekStrip, .unwantedStrip {
-  display: flex;
-  gap: 10px;
-  flex-wrap: nowrap;
-  overflow-x: auto;
-  overflow-y: hidden;
-  -webkit-overflow-scrolling: touch;
-  touch-action: pan-x;
-  scrollbar-width: none;
-}
-#hand::-webkit-scrollbar, .handStrip::-webkit-scrollbar, .peekStrip::-webkit-scrollbar, .unwantedStrip::-webkit-scrollbar { display: none; }
-
-/* Make cards shrink nicely on small phones but stay readable */
-.card {
-  flex: 0 0 auto;
-  width: clamp(44px, 12vw, 66px);
-  height: clamp(64px, 18vw, 96px);
-}
-
-/* Prevent iOS zoom when typing */
-button, input { font-size: 16px; }
