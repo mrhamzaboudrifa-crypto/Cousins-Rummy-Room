@@ -2,44 +2,19 @@
 <html lang="en">
 <head>
   <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,maximum-scale=1" />
+  <meta name="theme-color" content="#070712" />
   <title>Cousins Rummy Room — Practice</title>
-
-  <!-- Your main neon UI styles -->
-  <link rel="stylesheet" href="./style.css" />
-
-  <!-- Small practice-only fixes so it stays ONE screen on phones -->
-  <style>
-    html, body { height: 100%; }
-    body { margin: 0; overflow: hidden; overscroll-behavior: none; }
-
-    /* Make the app fill the phone screen properly (iPhone/Android) */
-    #app { height: 100dvh; width: 100vw; overflow: hidden; }
-
-    /* If your style.css has a max-width shell, this prevents side shifting */
-    .shell, .safe { width: 100% !important; max-width: none !important; }
-
-    /* Ensure the hand/unwanted strips can scroll horizontally */
-    #hand, .peekStrip {
-      overflow-x: auto;
-      overflow-y: hidden;
-      -webkit-overflow-scrolling: touch;
-      touch-action: pan-x;
-      scroll-behavior: smooth;
-      scrollbar-width: none;
-    }
-    #hand::-webkit-scrollbar, .peekStrip::-webkit-scrollbar { display: none; }
-
-    /* Prevent browser zoom/select weirdness */
-    .card { -webkit-tap-highlight-color: transparent; user-select: none; }
-    button, input { font-size: 16px; } /* stops iOS zoom on focus */
-  </style>
+  <link rel="stylesheet" href="style.css" />
 </head>
 
 <body>
-  <div id="app"></div>
+  <div class="bg"></div>
 
-  <!-- Practice mode logic -->
-  <script src="./practice.js"></script>
+  <div class="safe">
+    <div class="shell" id="app"></div>
+  </div>
+
+  <script src="practice.js"></script>
 </body>
 </html>
