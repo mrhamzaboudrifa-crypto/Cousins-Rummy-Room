@@ -15,17 +15,41 @@
     /* Practice UI */
     .grid{display:flex;flex-direction:column;gap:12px;}
     .pills{display:flex;gap:10px;flex-wrap:wrap;}
-    .pill{padding:10px 12px;border-radius:14px;border:1px solid rgba(255,255,255,.14);
-      background:rgba(0,0,0,.16);font-weight:900;cursor:pointer;}
-    .pill.active{outline:2px solid rgba(111,214,255,.65);box-shadow:0 0 16px rgba(111,214,255,.18);}
+    .pill{
+      padding:10px 12px;border-radius:14px;
+      border:1px solid rgba(255,255,255,.14);
+      background:rgba(0,0,0,.16);
+      font-weight:900;cursor:pointer;
+    }
+    .pill.active{
+      outline:2px solid rgba(111,214,255,.65);
+      box-shadow:0 0 16px rgba(111,214,255,.18);
+    }
+
     .gameArea{display:flex;flex-direction:column;gap:10px;}
     .seatRow{display:flex;justify-content:space-between;gap:10px;flex-wrap:wrap;}
-    .seatBox{flex:1;min-width:140px;background:rgba(0,0,0,.18);border:1px solid rgba(255,255,255,.14);
-      border-radius:16px;padding:10px;}
+    .seatBox{
+      flex:1;min-width:140px;
+      background:rgba(0,0,0,.18);
+      border:1px solid rgba(255,255,255,.14);
+      border-radius:16px;padding:10px;
+    }
+
     .centerRow{display:flex;gap:10px;justify-content:space-between;}
-    .pileBox{flex:1;background:rgba(0,0,0,.18);border:1px solid rgba(255,255,255,.14);
-      border-radius:16px;padding:10px;text-align:center;}
-    .hand{display:flex;gap:10px;overflow:auto;padding:6px 2px 10px;}
+    .pileBox{
+      flex:1;
+      background:rgba(0,0,0,.18);
+      border:1px solid rgba(255,255,255,.14);
+      border-radius:16px;padding:10px;text-align:center;
+    }
+
+    .hand{
+      display:flex;
+      gap:10px;
+      overflow-x:auto;
+      -webkit-overflow-scrolling: touch;
+      padding:6px 2px 10px;
+    }
 
     /* Proper playing-card look */
     .card{
@@ -39,17 +63,16 @@
     .card::before{
       content:"";
       position:absolute; inset:-30% -30%;
-      background: radial-gradient(circle at 30% 20%, rgba(111,214,255,.18), transparent 55%),
-                  linear-gradient(120deg, rgba(255,255,255,.35), transparent 45%);
+      background:
+        radial-gradient(circle at 30% 20%, rgba(111,214,255,.18), transparent 55%),
+        linear-gradient(120deg, rgba(255,255,255,.35), transparent 45%);
       transform: rotate(18deg);
       pointer-events:none;
     }
     .card.red{color:#c0172c;}
     .card.black{color:#101018;}
-    .card.sel{
-      outline:3px solid rgba(111,214,255,.65);
-      transform: translateY(-2px);
-    }
+    .card.sel{outline:3px solid rgba(111,214,255,.65); transform: translateY(-2px);}
+
     .corner{
       position:absolute; font-weight:900; font-size:14px; line-height:1.0;
       display:flex; flex-direction:column; gap:3px;
@@ -69,6 +92,34 @@
     .timerBox{font-weight:900;text-align:right;}
     .danger{color:#ffd6dd;text-shadow:0 0 14px rgba(255,78,106,.25);}
     .note{font-size:12px;color:rgba(242,243,255,.72);}
+
+    /* --- Unwanted pile scroll-peek strip (like picture) --- */
+    .peekWrap{ margin-top:10px; }
+    .peekStrip{
+      display:flex;
+      gap:10px;
+      overflow-x:auto;
+      -webkit-overflow-scrolling: touch;
+      padding:10px 6px;
+      scroll-snap-type: x mandatory;
+      scroll-padding: 40px;
+      border-radius:14px;
+      border:1px solid rgba(255,255,255,.12);
+      background: rgba(0,0,0,.14);
+    }
+    .peekStrip::-webkit-scrollbar{ display:none; }
+    .peekCard{
+      scroll-snap-align:center;
+      flex:0 0 auto;
+      transform: scale(.92);
+      opacity:.78;
+      transition: transform .12s ease, opacity .12s ease, box-shadow .12s ease;
+    }
+    .peekCard.active{
+      transform: scale(1.02);
+      opacity:1;
+      box-shadow: 0 0 18px rgba(111,214,255,.12);
+    }
 
     /* keep tiny screens usable */
     @media (max-width:360px){
