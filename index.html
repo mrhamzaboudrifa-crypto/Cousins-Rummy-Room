@@ -2,14 +2,17 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,maximum-scale=1" />
   <meta name="theme-color" content="#070712" />
   <title>Cousins Rummy Room</title>
   <link rel="stylesheet" href="style.css" />
 </head>
 <body>
   <div class="bg"></div>
-  <div id="app"></div>
+
+  <div class="safe">
+    <div class="shell" id="app"></div>
+  </div>
 
   <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
