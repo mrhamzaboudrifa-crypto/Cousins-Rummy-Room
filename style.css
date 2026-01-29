@@ -1,10 +1,10 @@
 /* =========================
    Cousins Rummy Room — Shared UI (Lobby + Practice)
    Goals:
-   - Lobby scrolls normally
-   - Practice is ONE-SCREEN with internal scrolling only
-   - Horizontal strips (hand/unwanted/melds) scroll smoothly on iPhone/Android
-   - No snap-back, no “fighting finger”, no left shift
+   - Lobby stays beautiful and scrolls normally
+   - Practice stays on ONE screen (no long scrolling)
+   - Horizontal swipe areas NEVER fight your finger
+   - No left-shift on iPhone/Android
    ========================= */
 
 :root{
@@ -15,10 +15,9 @@
   --text: rgba(240,248,255,.92);
   --muted: rgba(240,248,255,.62);
   --danger: #ff5b5b;
-  --accent: rgba(120,210,255,.85);
 
-  /* Responsive card size */
-  --card-w: clamp(46px, 12vw, 72px);
+  /* Default card size (Practice overrides smaller) */
+  --card-w: clamp(44px, 12vw, 70px);
   --card-h: calc(var(--card-w) * 1.35);
 }
 
@@ -31,21 +30,25 @@ html, body{
   color:var(--text);
   font-family: ui-sans-serif, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Arial;
   background:#000;
-  overflow-x:hidden;
+  overflow-x:hidden; /* stops sideways drift */
 }
 
-/* ✅ Lobby scrolls normally */
+/* ✅ LOBBY default: allow scrolling */
 body{
   overflow-y:auto;
   overscroll-behavior: none;
 }
 
-/* ✅ Practice locks the page scroll */
+/* ✅ PRACTICE: lock page scroll (only internal areas scroll) */
 body.practice{
   overflow:hidden;
+
+  /* smaller cards to fit everything on phones */
+  --card-w: clamp(34px, 9vw, 56px);
+  --card-h: calc(var(--card-w) * 1.35);
 }
 
-/* Background layer (index.html uses <div class="bg"></div>) */
+/* Background */
 .bg{
   position:fixed;
   inset:0;
@@ -57,17 +60,19 @@ body.practice{
     linear-gradient(180deg, rgba(6,8,14,.86), rgba(6,8,14,.92));
 }
 
-/* Optional bar photo for practice only (put bar.jpg in repo root) */
+/* Optional bar background for practice:
+   Add an image named bar.jpg in repo root if you want.
+*/
 body.practice .bg{
   background:
-    linear-gradient(180deg, rgba(0,0,0,.45), rgba(0,0,0,.72)),
+    linear-gradient(180deg, rgba(0,0,0,.45), rgba(0,0,0,.74)),
     url("./bar.jpg") center/cover no-repeat,
     radial-gradient(1200px 800px at 20% 10%, rgba(255,140,80,.20), transparent 60%),
     radial-gradient(900px 700px at 70% 40%, rgba(80,180,255,.18), transparent 60%),
     linear-gradient(180deg, rgba(6,8,14,.86), rgba(6,8,14,.92));
 }
 
-/* Safe wrapper for notch devices (practice uses it) */
+/* Safe wrapper (notch friendly) */
 .safe{
   min-height:100dvh;
   width:100vw;
@@ -92,7 +97,7 @@ body.practice .bg{
   gap:12px;
 }
 
-/* ---------- Branding ---------- */
+/* Titles */
 .title{
   font-size:28px;
   font-weight:900;
@@ -130,17 +135,17 @@ body.practice .bg{
 /* Inputs / Buttons */
 .input{
   width:100%;
-  padding:12px 12px;
+  padding:12px;
   border-radius:14px;
   border:1px solid rgba(255,255,255,.14);
   background: rgba(0,0,0,.28);
   color:var(--text);
   outline:none;
-  font-size:16px; /* stop iOS zoom */
+  font-size:16px; /* prevents iOS zoom */
 }
 .btn{
   width:100%;
-  padding:12px 12px;
+  padding:12px;
   border-radius:14px;
   border:1px solid rgba(255,255,255,.14);
   background: rgba(0,0,0,.25);
@@ -154,7 +159,6 @@ body.practice .bg{
 }
 .btn:disabled{ opacity:.45; }
 
-/* Lobby lists/chat */
 .list{ margin-top:10px; display:flex; flex-direction:column; gap:8px; }
 .item{
   padding:10px;
@@ -162,26 +166,35 @@ body.practice .bg{
   background: rgba(0,0,0,.22);
   border:1px solid rgba(160,210,255,.12);
 }
-.chat{
-  max-height:240px;
-  overflow:auto;
-  -webkit-overflow-scrolling: touch;
-  padding-right:4px;
+
+/* =============================
+   PRACTICE GAME (ONE SCREEN)
+   ============================= */
+
+.gameLayout{
+  height:100dvh;
+  display:flex;
+  flex-direction:column;
+  overflow:hidden;
 }
 
-/* =========================================
-   PRACTICE GAME (ONE SCREEN)
-   ========================================= */
+.gameMain{
+  flex:1;
+  min-height:0;
+  overflow:auto; /* internal vertical scroll only if needed */
+  -webkit-overflow-scrolling: touch;
+  padding-bottom:10px;
+}
 
-/* Compact practice header */
+/* Header (smaller in game) */
 .hdr{
   display:flex;
   justify-content:space-between;
   align-items:flex-start;
   gap:12px;
 }
-.brand .title{ font-size:22px; }
-.brand .subtitle{ font-size:28px; }
+.brand .title{ font-size:20px; }
+.brand .subtitle{ font-size:26px; }
 .exitMini{
   padding:8px 12px;
   border-radius:12px;
@@ -191,7 +204,6 @@ body.practice .bg{
   user-select:none;
 }
 
-/* Turn banner */
 .turnBanner{
   display:flex;
   justify-content:space-between;
@@ -205,35 +217,28 @@ body.practice .bg{
 .turnBanner .muted{ color:var(--muted); font-size:12px; }
 .danger{ color:var(--danger); font-weight:900; }
 
-/* One screen: middle scrolls, bottom hand stays visible */
-.gameLayout{
-  height:100dvh;
-  display:flex;
-  flex-direction:column;
-  overflow:hidden;
-}
-.gameMain{
-  flex:1;
-  min-height:0;
-  overflow:auto;
-  -webkit-overflow-scrolling: touch;
-  padding-bottom:10px;
-}
-
-/* Opponents row */
-.seatRow{
+/* ✅ Horizontal swipe zones — NO fighting */
+#hand, .peekStrip, .seatRow, .meldTrayBody{
   display:flex;
   gap:10px;
+  flex-wrap:nowrap;
   overflow-x:auto;
   overflow-y:hidden;
   -webkit-overflow-scrolling: touch;
-  touch-action: pan-x;
-  padding-bottom:4px;
+  touch-action: pan-x !important;
+  overscroll-behavior-x: contain;
+  scroll-snap-type:none !important;
   scrollbar-width:none;
 }
-.seatRow::-webkit-scrollbar{ display:none; }
+#hand::-webkit-scrollbar,
+.peekStrip::-webkit-scrollbar,
+.seatRow::-webkit-scrollbar,
+.meldTrayBody::-webkit-scrollbar{ display:none; }
+
+/* Opponents row */
+.seatRow{ padding-bottom:4px; }
 .seatBox{
-  min-width:180px;
+  min-width:170px;
   border-radius:16px;
   padding:10px;
   background: var(--panel2);
@@ -244,7 +249,7 @@ body.practice .bg{
   box-shadow: 0 0 0 2px rgba(120,210,255,.45), 0 0 28px rgba(120,210,255,.16);
 }
 
-/* Deck + unwanted */
+/* Center layout */
 .centerRow{
   display:grid;
   grid-template-columns: 1fr 1fr;
@@ -285,21 +290,16 @@ body.practice .bg{
   letter-spacing:1px;
   opacity:.85;
 }
-.hint{ font-size:11px; color:var(--muted); text-align:center; margin-top:6px; }
 
-/* ✅ Unwanted peek strip */
-.peekWrap{ margin-top:10px; overflow:hidden; }
-.peekStrip{
-  display:flex;
-  gap:8px;
-  overflow-x:auto;
-  overflow-y:hidden;
-  -webkit-overflow-scrolling: touch;
-  touch-action: pan-x !important;
-  padding:6px 2px 8px;
-  scrollbar-width:none;
+.hint{
+  font-size:11px;
+  color:var(--muted);
+  text-align:center;
+  margin-top:6px;
 }
-.peekStrip::-webkit-scrollbar{ display:none; }
+
+/* Unwanted peek strip */
+.peekWrap{ margin-top:10px; overflow:hidden; }
 .peekCard{ flex:0 0 auto; opacity:.85; transform: scale(.94); }
 .peekCard.active{
   opacity:1;
@@ -347,7 +347,6 @@ body.practice .bg{
   opacity:.95;
 }
 
-/* Selected / new draw */
 .card.sel{
   outline:2px solid rgba(120,210,255,.9);
   box-shadow: 0 0 0 2px rgba(120,210,255,.35), 0 12px 26px rgba(0,0,0,.30);
@@ -365,18 +364,6 @@ body.practice .bg{
   border:1px solid rgba(160,210,255,.16);
 }
 .meldTrayHead{ display:flex; justify-content:space-between; align-items:center; }
-.meldTrayBody{
-  margin-top:8px;
-  display:flex;
-  gap:10px;
-  overflow-x:auto;
-  overflow-y:hidden;
-  -webkit-overflow-scrolling: touch;
-  touch-action: pan-x;
-  padding-bottom:6px;
-  scrollbar-width:none;
-}
-.meldTrayBody::-webkit-scrollbar{ display:none; }
 .meldBlock{
   flex:0 0 auto;
   border-radius:14px;
@@ -385,7 +372,7 @@ body.practice .bg{
   border:1px solid rgba(160,210,255,.12);
 }
 
-/* ✅ Hand bar stays visible */
+/* Hand bar */
 .handBar{
   position:sticky;
   bottom:0;
@@ -396,23 +383,6 @@ body.practice .bg{
   border:1px solid rgba(160,210,255,.18);
   backdrop-filter: blur(10px);
 }
-.handHead{ display:flex; justify-content:space-between; align-items:flex-end; }
-
-#hand{
-  display:flex;
-  gap:10px;
-  overflow-x:auto;
-  overflow-y:hidden;
-  -webkit-overflow-scrolling: touch;
-  touch-action: pan-x !important;
-  padding:10px 2px 6px;
-
-  /* IMPORTANT: remove the snap-back bug */
-  scroll-snap-type: none;
-
-  scrollbar-width:none;
-}
-#hand::-webkit-scrollbar{ display:none; }
 
 /* Small phones */
 @media (max-width: 420px){
